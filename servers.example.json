@@ -1,0 +1,18 @@
+[
+  {
+    "id": "main",
+    "name": "My Main Server",
+    "guildId": "111111111111111111",
+    "host": "127.0.0.1",
+    "port": 1760,
+    "tokenFile": "C:\\Users\\YOU\\AppData\\Roaming\\TheModdingTavern\\console_token.txt"
+  },
+  {
+    "id": "creative",
+    "name": "My Creative Server",
+    "guildId": "222222222222222222",
+    "host": "127.0.0.1",
+    "port": 1770,
+    "token": "PASTE_THE_SECOND_SERVER_CONSOLE_TOKEN_HERE"
+  }
+]
