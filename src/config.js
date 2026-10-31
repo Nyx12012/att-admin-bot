@@ -1,8 +1,39 @@
 const fs = require('fs');
 const path = require('path');
 
+const dotenv = require('dotenv');
+
 const root = path.resolve(__dirname, '..');
-require('dotenv').config({ path: path.join(root, '.env'), quiet: true });
+const ENV_NAMES = ['.env', '.env.txt', 'env', 'env.txt'];
+const BOM = String.fromCharCode(0xfeff);
+
+function decode(buf) {
+  if (buf[0] === 0xff && buf[1] === 0xfe) return buf.subarray(2).toString('utf16le');
+  if (buf[0] === 0xfe && buf[1] === 0xff) {
+    const body = Buffer.from(buf.subarray(2, buf.length - (buf.length % 2)));
+    return body.swap16().toString('utf16le');
+  }
+  const text = buf.toString('utf8');
+  return text.startsWith(BOM) ? text.slice(1) : text;
+}
+
+function readEnvFile(dir) {
+  for (const name of ENV_NAMES) {
+    const file = path.join(dir, name);
+    try {
+      if (!fs.statSync(file).isFile()) continue;
+    } catch {
+      continue;
+    }
+    return { name, file, vars: dotenv.parse(decode(fs.readFileSync(file))) };
+  }
+  return null;
+}
+
+const envFile = readEnvFile(root);
+if (envFile) {
+  for (const [k, v] of Object.entries(envFile.vars)) if (process.env[k] === undefined) process.env[k] = v;
+}
 
 function env(name, fallback = '') {
   const v = process.env[name];
@@ -51,6 +82,7 @@ function normalizeServer(s, i) {
 function load() {
   return {
     root,
+    envFile: envFile ? envFile.name : null,
     dataDir: path.resolve(root, env('DATA_DIR', 'data')),
     discordToken: env('DISCORD_TOKEN'),
     ownerIds: env('BOT_OWNER_IDS').split(/[\s,]+/).filter(Boolean),
@@ -58,4 +90,4 @@ function load() {
   };
 }
 
-module.exports = { load, root };
+module.exports = { load, root, readEnvFile, decode };

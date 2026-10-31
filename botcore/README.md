@@ -1,19 +1,26 @@
 # BotCore
 
-A small, optional server mod for the bot. It is only needed for `/atm` and `/mail`.
+A small, optional server mod for the bot. It does two things:
 
-The game's coin and mailbox commands (`trade atm`, `trade post`) look players up on Alta's old
-servers, which are gone, so on a normal server they fail with "Failed sending request". BotCore
-answers those lookups from the players online right now and from `users.json` in
-`%APPDATA%\TheModdingTavern`, the file TavernLib already keeps. Nothing else in the game changes.
+- **Coins and mail.** The game's coin and mailbox commands (`trade atm`, `trade post`) look
+  players up on Alta's old servers, which are gone, so on a normal server they fail with "Failed
+  sending request". BotCore answers those lookups from the players online right now and from
+  `users.json` in `%APPDATA%\TheModdingTavern`, the file TavernLib already keeps. That turns on
+  `/atm` and `/mail`.
+- **Starts the bot with the server.** If the bot is in the server's `UserData\ATT-Admin-Bot`
+  folder, BotCore starts it when the server starts, and the bot stops when the server stops. See
+  "Start the bot with the game server" in SETUP.md.
+
+Nothing else in the game changes.
 
 ## Install
 
 1. Stop the game server.
 2. Put `BotCore.dll` in the server's `Mods` folder.
-3. Start the server. Its log shows `BotCore 1.0.0: 6 commands ready`.
+3. Start the server. Its log shows `BotCore 1.1.0: 6 commands ready`, and `Started the Discord
+   bot` when the bot is in `UserData\ATT-Admin-Bot`.
 
-The bot notices it on its next connect and logs `BotCore 1.0.0 found`.
+To turn the autostart off, create an empty file `UserData\BotCore\autostart-off.txt`.
 
 ## Console commands it adds
 

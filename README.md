@@ -64,7 +64,8 @@ Every admin action is written to `data/audit/` and, if you pick a channel, poste
 
 The game's coin and mailbox commands look players up on Alta's old servers, which are gone.
 BotCore is a small server mod that answers those lookups, which turns on `/atm` and `/mail`.
-See [botcore/README.md](botcore/README.md). Without it everything else works.
+On Windows it can also start the bot together with the game server, so nobody has to run
+`start.bat`. See [botcore/README.md](botcore/README.md). Without it everything else works.
 
 ## Commands
 

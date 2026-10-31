@@ -1,7 +1,12 @@
 node_modules/
 .env
+.env.txt
+env
+env.txt
 servers.json
 data/*
 !data/items.json
+logs/
+node/
 botcore/bin/
 *.log

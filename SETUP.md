@@ -37,7 +37,12 @@ commas.
 
 ## 4. Fill in the settings
 
-Copy `.env.example` and name the copy `.env`. Open it with Notepad:
+Copy `.env.example` and name the copy `.env`. It must sit in the same folder as `start.bat`,
+`package.json` and the `src` folder. Windows hides file endings by default, so first turn them on
+in File Explorer (View, Show, File name extensions): Notepad likes to save `.env.txt`, which looks
+like `.env` while endings are hidden. The bot reads `.env.txt` too and tells you to rename it.
+
+Open `.env` with Notepad:
 
 | Line | What goes there |
 |---|---|
@@ -109,6 +114,26 @@ pm2 save
 
 On Windows, `pm2-installer` or a Task Scheduler task "at log on" running `start.bat` keeps it
 up after a reboot.
+
+## Start the bot with the game server (Windows, BotCore)
+
+With BotCore 1.1.0 the game server starts the bot itself, so nobody has to run `start.bat`.
+
+1. Put `BotCore.dll` in the server's `Mods` folder.
+2. Move the whole bot folder into the server's `UserData` folder (next to `Mods`) and name it
+   `ATT-Admin-Bot`, so you have `UserData\ATT-Admin-Bot\start.bat`.
+3. Fill in `.env` there (step 4) and run `start.bat` there once. It installs what the bot needs
+   and shows any setup problem. Close it when it says it is connected.
+4. Start the server. Its log shows `Started the Discord bot`. The bot writes its own log to
+   `UserData\ATT-Admin-Bot\logs\bot.log`, and stops by itself when the server stops.
+
+Node.js still has to be installed. If you do not want to install it, put a portable `node.exe` in
+`UserData\ATT-Admin-Bot\node\`. To turn autostart off, create an empty file
+`UserData\BotCore\autostart-off.txt`. Only one copy of the bot runs at a time, so starting
+`start.bat` while the server's copy runs just says it is already running.
+
+The bot is offline while the server is off, so `/status` and the online list say nothing then.
+The Linux docker kit runs the game under Wine: keep running the bot with pm2 there.
 
 ## More than one game server
 

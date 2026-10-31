@@ -13,7 +13,7 @@ namespace BotCore
 {
     public class Entry : MelonMod
     {
-        public const string Version = "1.0.0";
+        public const string Version = "1.1.0";
 
         bool _registered;
 
@@ -32,6 +32,7 @@ namespace BotCore
                 BotCoreCommands.Sweep.ProtectFilePath = Path.Combine(Path.Combine(userData, "BotCore"), "sweep-protect.txt");
 
                 Resolver.Apply(log);
+                Autostart.Run(userData, log);
 
                 int count = RegisterCommands();
                 _registered = count > 0;
