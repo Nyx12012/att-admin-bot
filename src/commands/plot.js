@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { addPlayer, addName, addChoice, addBool, addInt } = require('../core/opts');
+const { addPlayer, addName, addChoice, addBool } = require('../core/opts');
 const { UserError, isSafeName, chunkName, overworldChunk, own, vecText } = require('../game/text');
 const { AREAS } = require('../game/server');
 
@@ -22,10 +22,7 @@ function info(p) {
 }
 
 function treeText(tree) {
-  if (!tree) return 'The plot tree is off.';
-  return tree.point
-    ? `The plot tree is at ${vecText(tree.point)} in chunk ${tree.chunk}, within ${tree.radius} m.`
-    : `The plot tree is the whole chunk ${tree.chunk}.`;
+  return tree ? `The plot tree is chunk ${tree.chunk}.` : 'The plot tree is off.';
 }
 
 module.exports = {
@@ -52,7 +49,7 @@ module.exports = {
     .addSubcommand((s) => plot(s.setName('prefer').setDescription('Pick which of your plots the plot tree sends you to')))
     .addSubcommand((s) => addPlayer(s.setName('where').setDescription('Which chunk and plot a player is in')))
     .addSubcommand((s) => addPlayer(s.setName('why').setDescription('Why a player is or is not allowed where they stand')))
-    .addSubcommand((s) => addInt(addPlayer(addChoice(s.setName('tree').setDescription('Walk to a spot, get sent to your plot'), 'action', 'What to do', [{ name: 'set it where a player stands', value: 'set' }, { name: 'turn it off', value: 'off' }, { name: 'show it', value: 'show' }]), { required: false, description: 'Player on the spot, default you' }), 'radius', 'Meters around the spot, 0 means the whole chunk (default 8)', { required: false, min: 0, max: 64 }))
+    .addSubcommand((s) => addName(addChoice(s.setName('tree').setDescription('Walk into a chunk, get sent to your plot (default 17-34)'), 'action', 'What to do', [{ name: 'set the chunk', value: 'set' }, { name: 'turn it off', value: 'off' }, { name: 'show it', value: 'show' }]), 'chunk', 'Chunk like 17-34 (default 17-34)', { required: false, max: 12 }))
     .addSubcommand((s) => addBool(s.setName('enforce').setDescription('Turn plot protection on or off for the whole server'), 'on', 'On or off'))
     .addSubcommand((s) => addBool(s.setName('leave').setDescription('Send owners and trusted players to the exit when they walk out of a plot'), 'on', 'On or off'))
     .addSubcommand((s) => addBool(s.setName('adminpass').setDescription('Let linked Discord admins into every plot'), 'on', 'On or off'))
@@ -140,18 +137,15 @@ module.exports = {
       if (action === 'off') {
         st.tree = null;
         plots.saveSettings(s);
-        return ctx.ok('Plot tree', 'Off.');
+        ctx.note('off');
+        return ctx.ok('Plot tree', 'Off. Turn it back on with `/plot tree action:set`.');
       }
-      ctx.needOnline();
-      const who = ctx.opt('player') ? ctx.player() : ctx.self();
-      const { pos, chunk } = await s.position(who);
-      const c = overworldChunk(chunk);
-      if (!pos || !c) throw new UserError(`${who} has to stand outdoors in a normal chunk.`);
-      const radius = ctx.opt('radius') ?? 8;
-      st.tree = radius === 0 ? { chunk: c, point: null, radius: 0 } : { chunk: c, point: pos, radius };
+      const c = overworldChunk(ctx.opt('chunk') || plots.defaultTree);
+      if (!c) throw new UserError('That is not a chunk. Use a name like 17-34.');
+      st.tree = { chunk: c };
       plots.saveSettings(s);
       ctx.note(treeText(st.tree));
-      return ctx.ok('Plot tree set', `${treeText(st.tree)}\n\nAnyone on a plot who walks there is sent to their plot. Everyone else is left alone.`);
+      return ctx.ok('Plot tree set', `${treeText(st.tree)}\n\nAnyone with a plot who walks into that chunk is sent to their plot. Everyone else is left alone.`);
     }
     if (ctx.sub === 'create') {
       ctx.needOnline();

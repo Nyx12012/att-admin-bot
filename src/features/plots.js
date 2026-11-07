@@ -1,8 +1,7 @@
-const { chunkName, overworldChunk, UserError, isSafeName, safeKey, own, vec, distance } = require('../game/text');
+const { chunkName, overworldChunk, UserError, isSafeName, safeKey, own, vec } = require('../game/text');
 
-const TREE_POLL_MS = 2000;
+const DEFAULT_TREE_CHUNK = '17-34';
 const TREE_COOLDOWN_MS = 15000;
-const ARM_MS = 120000;
 const ADMIN_CACHE_MS = 300000;
 const MAP_WIDTH = 40;
 const MAP_HEIGHT = 24;
@@ -15,8 +14,7 @@ class Plots {
     this.where = new Map();
     this.warned = new Set();
     this.timer = null;
-    this.treeTimer = null;
-    this.armed = new Map();
+    this.defaultTree = DEFAULT_TREE_CHUNK;
     this.treeCooldown = new Map();
     this.down = new Set();
     this.seenAs = new Map();
@@ -35,6 +33,7 @@ class Plots {
     if (d.leave == null) d.leave = false;
     if (!d.staff) d.staff = [];
     if (!d.prefer) d.prefer = {};
+    if (d.tree === undefined) d.tree = { chunk: DEFAULT_TREE_CHUNK };
     return d;
   }
 
@@ -193,53 +192,9 @@ class Plots {
 
   async treeCheck(server, username, current, moved) {
     const tree = this.settings(server).tree;
-    if (!tree || current !== tree.chunk) return;
+    if (!moved || !tree || current !== tree.chunk) return;
     const plot = this.plotFor(server, username);
-    if (!plot) return;
-    if (!tree.point) {
-      if (moved) await this.sendToPlot(server, username, plot);
-      return;
-    }
-    this.armed.set(`${server.id}:${username.toLowerCase()}`, { server, username, until: Date.now() + ARM_MS });
-    this.startTree();
-  }
-
-  startTree() {
-    if (this.treeTimer) return;
-    this.treeTimer = setInterval(() => this.treeTick().catch((e) => console.warn(`[plots] ${e.message}`)), TREE_POLL_MS);
-    this.treeTimer.unref?.();
-  }
-
-  stopTree() {
-    clearInterval(this.treeTimer);
-    this.treeTimer = null;
-  }
-
-  async treeTick() {
-    if (this.ticking) return;
-    this.ticking = true;
-    try {
-      for (const [key, a] of [...this.armed]) {
-        const tree = this.settings(a.server).tree;
-        if (!tree || !tree.point || a.until < Date.now() || !a.server.online || !a.server.find(a.username)) {
-          this.armed.delete(key);
-          continue;
-        }
-        const { pos, chunk } = await a.server.position(a.username).catch(() => ({}));
-        if (!pos) continue;
-        if (overworldChunk(chunk) !== tree.chunk) {
-          this.armed.delete(key);
-          continue;
-        }
-        if (distance(pos, tree.point) > tree.radius) continue;
-        this.armed.delete(key);
-        const plot = this.plotFor(a.server, a.username);
-        if (plot) await this.sendToPlot(a.server, a.username, plot);
-      }
-    } finally {
-      this.ticking = false;
-      if (this.armed.size === 0) this.stopTree();
-    }
+    if (plot) await this.sendToPlot(server, username, plot);
   }
 
   async moveOut(server, username, plot) {
@@ -365,7 +320,6 @@ class Plots {
         const name = d.user && d.user.username;
         if (!name) return;
         const key = `${server.id}:${String(name).toLowerCase()}`;
-        this.armed.delete(key);
         this.down.delete(key);
       });
     }
@@ -377,7 +331,6 @@ class Plots {
 
   stop() {
     clearInterval(this.timer);
-    this.stopTree();
   }
 }
 

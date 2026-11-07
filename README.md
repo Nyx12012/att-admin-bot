@@ -45,9 +45,9 @@ or trusted gets a warning, or is sent out to a spot you choose. Plot owners mana
 list. Linked Discord admins can always enter. `/plot why` shows exactly why a player is or is not
 allowed.
 
-**Plot tree.** `/plot tree` turns a spot into a teleporter: anyone on a plot who walks there is sent
-to their plot, everyone else is left alone. Each plot has an arrival spot, which fills in the first
-time its owner walks in, or you set it with `/plot spawn`.
+**Plot tree.** On by default at chunk 17-34: anyone with a plot who walks into that chunk is sent to
+their plot, everyone else is left alone. `/plot tree` changes the chunk or turns it off. Each plot has
+an arrival spot, which fills in the first time its owner walks in, or you set it with `/plot spawn`.
 
 **Chunks.** `/chunk show` marks the border of your chunk for a few minutes: graves with a beam of
 light at the corners, lamp posts along the sides. Nobody can pick them up. `/chunk watch` shows the
@@ -140,13 +140,6 @@ On Windows it can also start the bot together with the game server, so nobody ha
 - Selling a stack takes the whole amount you confirm. A bag with something inside cannot be sold.
 - A carried item buff can last up to 15 seconds after letting go.
 - If a purchase or sale stops halfway, `/shop pending` lists it. Nothing is paid twice on its own.
-
-## Tests
-
-```
-npm install
-npm test
-```
 
 ## Licence
 

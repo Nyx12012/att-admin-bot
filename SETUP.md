@@ -103,8 +103,8 @@ and connects on its own when it comes up.
 `/setup auto` makes a category with all the channels in one go. Only the online list can be seen by
 everyone, so open the others to your staff role in Discord.
 
-To set up the plot tree, stand where it should be and use `/plot tree action:set`. Use `radius: 0` to
-make the whole chunk the tree. Anyone on a plot who walks there is sent to their plot.
+The plot tree is on from the start at chunk 17-34. Anyone with a plot who walks into that chunk is
+sent to their plot. Use `/plot tree action:set chunk:21-35` to move it, or `action:off` to turn it off.
 
 To open a shop, install BotCore (below), then `/shop add` and `/sell add` for each item.
 
