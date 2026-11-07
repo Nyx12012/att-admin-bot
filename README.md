@@ -57,7 +57,7 @@ chunk and plot name on screen when you cross a border.
 their ATM coins from Discord. Items arrive in the mailbox. You can also sell Discord roles. Set what
 the bot pays for items, and players sell what they carry with `/sell item`. They see the offer and
 confirm first. Daily limits are optional, and a sell price at or above the shop price is refused so
-nobody can print coins. Nothing is sold from inside the Town Hall unless you turn that rule off.
+nobody can print coins. Nothing is bought, sold or withdrawn within 15 m of an ATM. Change that with `/shop atmdistance`.
 
 **Alchemy.** Build your own recipes for your server. Put items in the front pockets, in order or not,
 and either bring your hands together or just wait. A recipe can run up to 5 console commands, give

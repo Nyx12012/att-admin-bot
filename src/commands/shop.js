@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } = require('discord.js');
-const { addItem, addInt, addName, addBool } = require('../core/opts');
+const { addItem, addInt, addName } = require('../core/opts');
 const { embed } = require('../core/ui');
 const items = require('../core/items');
 const { UserError, safeKey, own } = require('../game/text');
@@ -68,7 +68,7 @@ module.exports = {
     .addSubcommand((s) => addInt(addName(addName(s.setName('addrole').setDescription('Sell a Discord role'), 'category', 'Category, like Perks', { max: 40 }), 'name', 'Name shown in the shop', { max: 60 }), 'price', 'Price in coins', { min: 1, max: 10000000 })
       .addRoleOption((o) => o.setName('role').setDescription('The role to grant').setRequired(true)))
     .addSubcommand((s) => product(s.setName('remove').setDescription('Take an item off sale')))
-    .addSubcommand((s) => addBool(s.setName('townhall').setDescription('Block buying, selling and withdrawing inside the Town Hall (on by default)'), 'on', 'On or off'))
+    .addSubcommand((s) => addInt(s.setName('atmdistance').setDescription('Block buying, selling and withdrawing near an ATM (default 15, 0 turns it off)'), 'meters', 'Meters around an ATM', { min: 0, max: 200 }))
     .addSubcommand((s) => s.setName('pending').setDescription('Purchases and sales that did not finish'))
     .addSubcommand((s) => addInt(s.setName('settle').setDescription('Clear a row of /shop pending once you fixed it by hand'), 'row', 'Row number', { min: 1 })),
   access: { list: 'everyone', menu: 'everyone', buy: 'everyone', '*': 'admin' },
@@ -119,10 +119,11 @@ module.exports = {
       ctx.note(x.name);
       return ctx.ok('Removed', x.name);
     }
-    if (ctx.sub === 'townhall') {
-      doc.blockTownHall = ctx.opt('on');
+    if (ctx.sub === 'atmdistance') {
+      doc.atmDistance = ctx.opt('meters');
       eco.saveShop(s);
-      return ctx.ok('Town Hall rule', ctx.opt('on') ? 'Coins and items cannot move while the player stands inside the Town Hall.' : 'Off.');
+      ctx.note(`${doc.atmDistance} m`);
+      return ctx.ok('ATM rule', doc.atmDistance ? `Coins and items cannot move while the player is within ${doc.atmDistance} m of an ATM.` : 'Off.');
     }
     if (ctx.sub === 'pending') {
       const rows = eco.ledger(s).pending;

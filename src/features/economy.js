@@ -1,10 +1,11 @@
-const { UserError, own, RESERVED } = require('../game/text');
+const { UserError, own, RESERVED, quoteName } = require('../game/text');
 
 const MAX_BUY = 25;
 const MAX_SELL = 100;
 const STALE_MS = 120000;
 const POUCH = 61648;
-const TOWN_HALL = /^\(?\s*(?:Chunk\s+)*Townhall Building/i;
+const ATM = /^ATM Coin Bank/i;
+const ATM_METERS = 15;
 
 class Economy {
   constructor(bot) {
@@ -15,7 +16,8 @@ class Economy {
   shop(server) {
     const d = this.bot.store.get(`server-${server.id}-shop`, () => ({}));
     if (!d.items) d.items = {};
-    if (d.blockTownHall == null) d.blockTownHall = true;
+    if (d.atmDistance == null) d.atmDistance = d.blockTownHall === false ? 0 : ATM_METERS;
+    delete d.blockTownHall;
     return d;
   }
 
@@ -120,9 +122,10 @@ class Economy {
   }
 
   async checkPlace(server, user) {
-    if (user.state !== 'online' || !this.shop(server).blockTownHall) return;
-    const d = await server.detailed(user.username).catch(() => null);
-    if (d && TOWN_HALL.test(String(d.Chunk || ''))) throw new UserError('You cannot do this inside the Town Hall. Step outside first.');
+    const meters = this.shop(server).atmDistance;
+    if (user.state !== 'online' || !meters) return;
+    const list = await server.selected(() => server.value(`select find ${quoteName(user.username)} ${meters}`)).catch(() => null);
+    if (Array.isArray(list) && list.some((e) => ATM.test(String(e && e.Name)))) throw new UserError(`You cannot do this within ${meters} m of an ATM. Step away first.`);
   }
 
   assertNoLoop(server, hash, { buy = null, sell = null }) {
