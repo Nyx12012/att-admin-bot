@@ -4,8 +4,10 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Alta.Character;
 using Alta.Chunks;
 using Alta.Console;
+using Alta.Inventory;
 using Alta.Networking;
 using Alta.Networking.Internal;
 using Alta.Networking.Scripts.Player;
@@ -102,6 +104,110 @@ namespace BotCore
         static string Join(List<string> lines)
         {
             return lines.Count == 0 ? "No connected players matched." : string.Join("\n", lines.ToArray());
+        }
+
+        [Command("ground", "Height of the ground under a point, from a height down")]
+        public static string Ground(float x, float z, float top)
+        {
+            RaycastHit hit;
+            if (Physics.Raycast(new Vector3(x, top, z), Vector3.down, out hit, 400f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            {
+                return "ground " + hit.point.y.ToString("0.000", CultureInfo.InvariantCulture);
+            }
+            return "none";
+        }
+
+        [Command("take", "Remove carried items of one prefab. Mode count only counts. Where is all, hands or belt")]
+        public static string Take(Player player, int hash, int max, string mode = "take", string where = "all")
+        {
+            if (player == null) return "error no player";
+            PlayerCharacter character = player.PlayerCharacter;
+            PlayerController pc = player.PlayerController;
+            if (character == null || pc == null) return "error not spawned";
+            Taking t = new Taking();
+            t.Hash = (uint)hash;
+            t.Max = max <= 0 ? int.MaxValue : max;
+            t.Dry = mode == "count";
+            bool all = where == "all";
+            if (all || where == "hands")
+            {
+                TakeHeld(pc.RightController, t);
+                TakeHeld(pc.LeftController, t);
+            }
+            if (all || where == "belt") WalkDocks(character.BeltDocks.Components, t);
+            if (all) WalkDocks(character.BackDocks.Components, t);
+            return (t.Dry ? "count " : "taken ") + t.Count.ToString(CultureInfo.InvariantCulture) + " " + t.Refused.ToString(CultureInfo.InvariantCulture);
+        }
+
+        sealed class Taking
+        {
+            public uint Hash;
+            public int Max;
+            public bool Dry;
+            public int Count;
+            public int Refused;
+        }
+
+        static bool Matches(Pickup p, uint hash)
+        {
+            NetworkEntity e = p != null ? p.Entity : null;
+            return e != null && !e.IsBeingDestroyed && e.Prefab != null && e.Prefab.Hash == hash;
+        }
+
+        static bool HasContents(Pickup p)
+        {
+            if (p.SubDocks == null) return false;
+            IEnumerable<PickupDock> docks = p.SubDocks.TotalDocks;
+            if (docks == null) return false;
+            foreach (PickupDock d in docks)
+            {
+                if (d != null && d.HasDockedPickup) return true;
+            }
+            return false;
+        }
+
+        static void TakeHeld(Controller c, Taking t)
+        {
+            if (c == null || c.Interactor == null || t.Count >= t.Max) return;
+            Pickup p = c.Interactor.InteractingWith as Pickup;
+            if (p == null) return;
+            if (!Matches(p, t.Hash))
+            {
+                if (p.SubDocks != null) WalkDocks(p.SubDocks.Docks, t);
+                return;
+            }
+            if (HasContents(p))
+            {
+                t.Refused++;
+                return;
+            }
+            if (!t.Dry) p.Entity.SceneDestroy();
+            t.Count++;
+        }
+
+        static void WalkDocks(IEnumerable<PickupDock> docks, Taking t)
+        {
+            if (docks == null) return;
+            foreach (PickupDock dock in docks)
+            {
+                if (t.Count >= t.Max) return;
+                if (dock == null || !dock.HasDockedPickup || dock.DockedPickup == null) continue;
+                Pickup p = dock.DockedPickup;
+                if (!Matches(p, t.Hash))
+                {
+                    if (p.SubDocks != null) WalkDocks(p.SubDocks.Docks, t);
+                    continue;
+                }
+                int stored = Math.Max(1, dock.QuantityStored);
+                if (HasContents(p))
+                {
+                    t.Refused += stored;
+                    continue;
+                }
+                int n = Math.Min(stored, t.Max - t.Count);
+                if (!t.Dry) dock.DestroyAmount(n);
+                t.Count += n;
+            }
         }
 
         [Module("sweep", "Loose ground items: count (dry run) then run (despawn)")]

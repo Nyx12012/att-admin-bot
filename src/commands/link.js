@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { addPlayer, addText } = require('../core/opts');
 const { UserError } = require('../game/text');
+const { list } = require('../core/ui');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,12 +15,19 @@ module.exports = {
       .addStringOption((o) => o.setName('player').setDescription('In-game name').setRequired(false).setAutocomplete(true))
       .setName('who').setDescription('Look up a link (admin)'))
     .addSubcommand((s) => s.addStringOption((o) => o.setName('player').setDescription('In-game name').setRequired(true).setMaxLength(32))
-      .setName('remove').setDescription('Remove the link of any player (admin)')),
-  access: { who: 'admin', remove: 'admin', '*': 'everyone' },
+      .setName('remove').setDescription('Remove the link of any player (admin)'))
+    .addSubcommand((s) => s.addStringOption((o) => o.setName('search').setDescription('Part of a name').setRequired(false).setMaxLength(32))
+      .setName('list').setDescription('Every link (admin)')),
+  access: { who: 'admin', remove: 'admin', list: 'admin', '*': 'everyone' },
 
   async run(ctx) {
     const s = ctx.needServer();
     const links = ctx.bot.links;
+    if (ctx.sub === 'list') {
+      const q = String(ctx.opt('search') || '').toLowerCase();
+      const rows = Object.entries(links.doc(s)).filter(([, l]) => l.username.toLowerCase().includes(q));
+      return ctx.info(`Links: ${rows.length}`, list(rows.map(([id, l]) => `**${l.username}** is <@${id}>`), 'Nobody is linked yet.'));
+    }
     if (ctx.sub === 'start') {
       ctx.needOnline();
       const name = await links.begin(s, ctx.user.id, ctx.opt('player'));

@@ -46,6 +46,30 @@ function chunkName(raw) {
   return m ? m[1] : String(raw ?? '').replace(/[()]/g, '').replace(/Chunk/g, '').trim();
 }
 
+function overworldChunk(raw) {
+  const m = String(raw ?? '').match(/^\(?\s*(?:Chunk\s+)*(\d+-\d+)\s*\)?$/);
+  return m ? m[1] : null;
+}
+
+const CHUNK_SIZE = 64;
+const CHUNK_ORIGIN = -2048;
+
+function chunkAt(pos) {
+  return `${Math.floor((pos[0] - CHUNK_ORIGIN) / CHUNK_SIZE)}-${Math.floor((pos[2] - CHUNK_ORIGIN) / CHUNK_SIZE)}`;
+}
+
+function chunkBounds(name) {
+  const m = String(name).match(/^(\d+)-(\d+)$/);
+  if (!m) return null;
+  const minX = CHUNK_ORIGIN + Number(m[1]) * CHUNK_SIZE;
+  const minZ = CHUNK_ORIGIN + Number(m[2]) * CHUNK_SIZE;
+  return { minX, minZ, maxX: minX + CHUNK_SIZE, maxZ: minZ + CHUNK_SIZE };
+}
+
+function distance(a, b) {
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
 class UserError extends Error {}
 
 const RESERVED = new Set(['__proto__', 'constructor', 'prototype', 'hasownproperty', 'tostring', 'valueof']);
@@ -61,4 +85,4 @@ function own(obj, key) {
   return obj && Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : undefined;
 }
 
-module.exports = { isSafeName, quoteName, cleanText, quoteText, prefabName, squash, vec, vecText, chunkName, safeKey, own, UserError, RESERVED };
+module.exports = { isSafeName, quoteName, cleanText, quoteText, prefabName, squash, vec, vecText, chunkName, overworldChunk, chunkAt, chunkBounds, distance, CHUNK_SIZE, safeKey, own, UserError, RESERVED };

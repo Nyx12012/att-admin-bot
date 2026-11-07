@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { addPlayer, addName, addChoice, addBool } = require('../core/opts');
-const { UserError, isSafeName, chunkName, own } = require('../game/text');
+const { addPlayer, addName, addChoice, addBool, addInt } = require('../core/opts');
+const { UserError, isSafeName, chunkName, overworldChunk, own, vecText } = require('../game/text');
 const { AREAS } = require('../game/server');
 
 function plot(s) {
@@ -17,7 +17,15 @@ function info(p) {
     `Chunks: ${p.chunks.join(', ')}`,
     `Trusted: ${p.trusted.length ? p.trusted.join(', ') : 'nobody'}`,
     `Intruders: ${p.mode === 'eject' ? 'sent out' : p.mode === 'warn' ? 'warned only' : 'ignored'} (exit: ${p.exit.point ? p.exit.label || 'saved location' : p.exit.area})`,
+    `Arrival spot: ${p.spawn ? vecText(p.spawn) : 'not set yet, it fills in when the owner walks in'}`,
   ].join('\n');
+}
+
+function treeText(tree) {
+  if (!tree) return 'The plot tree is off.';
+  return tree.point
+    ? `The plot tree is at ${vecText(tree.point)} in chunk ${tree.chunk}, within ${tree.radius} m.`
+    : `The plot tree is the whole chunk ${tree.chunk}.`;
 }
 
 module.exports = {
@@ -25,10 +33,13 @@ module.exports = {
     .setName('plot')
     .setDescription('Land claims: keep other players out of a base')
     .addSubcommand((s) => addPlayer(addName(s.setName('create').setDescription('Claim the chunk a player stands in for them'), 'name', 'Plot name'), { description: 'Owner, standing in the chunk' }))
+    .addSubcommand((s) => addName(addName(addName(s.setName('claim').setDescription('Claim chunks by list, nobody has to stand there'), 'name', 'Plot name'), 'owner', 'In-game name of the owner'), 'chunks', 'Chunks like 15-28,16-28', { max: 200 }))
     .addSubcommand((s) => addPlayer(plot(s.setName('grow').setDescription('Add the chunk a player stands in')), { description: 'Player standing in the chunk' }))
     .addSubcommand((s) => addName(plot(s.setName('shrink').setDescription('Remove a chunk from a plot')), 'chunk', 'Chunk like 21-34', { max: 12 }))
     .addSubcommand((s) => plot(s.setName('delete').setDescription('Delete a plot')))
+    .addSubcommand((s) => s.setName('deleteall').setDescription('Delete every plot on this server'))
     .addSubcommand((s) => s.setName('list').setDescription('Every plot'))
+    .addSubcommand((s) => s.setName('map').setDescription('A map of every plot'))
     .addSubcommand((s) => plot(s.setName('info').setDescription('Details of a plot')))
     .addSubcommand((s) => nameOpt(plot(s.setName('trust').setDescription('Let a player into a plot (plot owner or admin)')), 'In-game name'))
     .addSubcommand((s) => nameOpt(plot(s.setName('untrust').setDescription('Take a player off a plot (plot owner or admin)')), 'In-game name'))
@@ -36,11 +47,18 @@ module.exports = {
     .addSubcommand((s) => plot(s.setName('exit').setDescription('Where intruders are sent'))
       .addStringOption((o) => o.setName('area').setDescription('Named spot, like RespawnPoint').setRequired(false).setAutocomplete(true))
       .addStringOption((o) => o.setName('location').setDescription('Or a location from /location').setRequired(false).setAutocomplete(true)))
+    .addSubcommand((s) => addPlayer(plot(s.setName('spawn').setDescription('Set where the plot tree drops people (plot owner or admin)')), { required: false, description: 'Player standing on the spot, default you' }))
+    .addSubcommand((s) => addPlayer(plot(s.setName('teleport').setDescription("Send a player to a plot's arrival spot")), { description: 'Who to send' }))
+    .addSubcommand((s) => plot(s.setName('prefer').setDescription('Pick which of your plots the plot tree sends you to')))
     .addSubcommand((s) => addPlayer(s.setName('where').setDescription('Which chunk and plot a player is in')))
+    .addSubcommand((s) => addPlayer(s.setName('why').setDescription('Why a player is or is not allowed where they stand')))
+    .addSubcommand((s) => addInt(addPlayer(addChoice(s.setName('tree').setDescription('Walk to a spot, get sent to your plot'), 'action', 'What to do', [{ name: 'set it where a player stands', value: 'set' }, { name: 'turn it off', value: 'off' }, { name: 'show it', value: 'show' }]), { required: false, description: 'Player on the spot, default you' }), 'radius', 'Meters around the spot, 0 means the whole chunk (default 8)', { required: false, min: 0, max: 64 }))
     .addSubcommand((s) => addBool(s.setName('enforce').setDescription('Turn plot protection on or off for the whole server'), 'on', 'On or off'))
+    .addSubcommand((s) => addBool(s.setName('leave').setDescription('Send owners and trusted players to the exit when they walk out of a plot'), 'on', 'On or off'))
+    .addSubcommand((s) => addBool(s.setName('adminpass').setDescription('Let linked Discord admins into every plot'), 'on', 'On or off'))
     .addSubcommand((s) => nameOpt(s.setName('staff').setDescription('Players allowed in every plot, like admins'), 'In-game name')
       .addBooleanOption((o) => o.setName('allowed').setDescription('Add (true) or remove (false)').setRequired(true))),
-  access: { list: 'everyone', info: 'everyone', trust: 'everyone', untrust: 'everyone', '*': 'admin' },
+  access: { list: 'everyone', map: 'everyone', info: 'everyone', trust: 'everyone', untrust: 'everyone', spawn: 'everyone', prefer: 'everyone', '*': 'admin' },
 
   async autocomplete(ctx, focused) {
     if (!ctx.server) return [];
@@ -64,10 +82,33 @@ module.exports = {
       const list = Object.values(plots.doc(s));
       return ctx.info(`Plots: ${list.length}`, list.map((p) => `**${p.name}** (${p.owner}) ${p.chunks.length} chunk(s)`).join('\n') || 'No plots yet.');
     }
+    if (ctx.sub === 'map') {
+      return ctx.info('Plot map', plots.map(s) || 'No plots yet.');
+    }
+    if (ctx.sub === 'deleteall') {
+      const count = Object.keys(plots.doc(s)).length;
+      if (count === 0) return ctx.info('Nothing to delete', 'There are no plots.');
+      if (!(await ctx.confirm('Delete every plot?', `${count} plot(s) are removed and everyone can walk in. This cannot be undone.`, { label: 'Delete all' }))) return null;
+      const d = plots.doc(s);
+      for (const k of Object.keys(d)) delete d[k];
+      plots.save(s);
+      ctx.note(`${count} plots`);
+      return ctx.ok('Plots deleted', `${count} plot(s) removed.`);
+    }
     if (ctx.sub === 'enforce') {
       plots.settings(s).enforce = ctx.opt('on');
       plots.saveSettings(s);
       return ctx.ok('Plot protection', ctx.opt('on') ? 'On.' : 'Off. Plots are kept but nobody is warned or sent out.');
+    }
+    if (ctx.sub === 'leave') {
+      plots.settings(s).leave = ctx.opt('on');
+      plots.saveSettings(s);
+      return ctx.ok('Leaving a plot', ctx.opt('on') ? 'Owners and trusted players are sent to the exit when they walk out of a plot.' : 'Off. Players walk out of plots freely.');
+    }
+    if (ctx.sub === 'adminpass') {
+      plots.settings(s).adminPass = ctx.opt('on');
+      plots.saveSettings(s);
+      return ctx.ok('Admin pass', ctx.opt('on') ? 'Members with Administrator who used /link can enter every plot.' : 'Off. Only owners, trusted players and /plot staff can enter.');
     }
     if (ctx.sub === 'staff') {
       const name = String(ctx.opt('name')).trim();
@@ -76,7 +117,9 @@ module.exports = {
       st.staff = st.staff.filter((x) => x.toLowerCase() !== name.toLowerCase());
       if (ctx.opt('allowed')) st.staff.push(name);
       plots.saveSettings(s);
-      return ctx.ok('Plot staff', `Allowed in every plot: ${st.staff.join(', ') || 'nobody'}`);
+      const known = s.roster.has(name.toLowerCase());
+      const note = ctx.opt('allowed') && !known ? `\n\nNobody called "${name}" is online right now. The name has to match the in-game name exactly, so check the spelling.` : '';
+      return ctx.ok('Plot staff', `Allowed in every plot: ${st.staff.join(', ') || 'nobody'}${note}`);
     }
     if (ctx.sub === 'where') {
       ctx.needOnline();
@@ -85,17 +128,77 @@ module.exports = {
       const p = plots.at(s, chunk);
       return ctx.info(name, `Chunk **${chunk}**${p ? `, inside the plot **${p.name}** (${p.owner})` : ', not in a plot'}.`);
     }
+    if (ctx.sub === 'why') {
+      ctx.needOnline();
+      const name = ctx.player();
+      return ctx.info(`Plots and ${name}`, await plots.why(s, name));
+    }
+    if (ctx.sub === 'tree') {
+      const st = plots.settings(s);
+      const action = ctx.opt('action');
+      if (action === 'show') return ctx.info('Plot tree', treeText(st.tree));
+      if (action === 'off') {
+        st.tree = null;
+        plots.saveSettings(s);
+        return ctx.ok('Plot tree', 'Off.');
+      }
+      ctx.needOnline();
+      const who = ctx.opt('player') ? ctx.player() : ctx.self();
+      const { pos, chunk } = await s.position(who);
+      const c = overworldChunk(chunk);
+      if (!pos || !c) throw new UserError(`${who} has to stand outdoors in a normal chunk.`);
+      const radius = ctx.opt('radius') ?? 8;
+      st.tree = radius === 0 ? { chunk: c, point: null, radius: 0 } : { chunk: c, point: pos, radius };
+      plots.saveSettings(s);
+      ctx.note(treeText(st.tree));
+      return ctx.ok('Plot tree set', `${treeText(st.tree)}\n\nAnyone on a plot who walks there is sent to their plot. Everyone else is left alone.`);
+    }
     if (ctx.sub === 'create') {
       ctx.needOnline();
       const owner = ctx.player();
-      const { chunk } = await s.position(owner);
+      const { chunk, pos } = await s.position(owner);
       if (!chunk) throw new UserError(`Could not read the chunk ${owner} is in.`);
-      const p = plots.create(s, ctx.opt('name'), owner, chunk);
+      const p = plots.create(s, ctx.opt('name'), owner, chunk, pos);
       ctx.note(`${p.name} for ${owner} at ${chunk}`);
       return ctx.ok('Plot created', `${info(p)}\n\nGrow it with \`/plot grow\` while someone stands in the next chunk.`);
     }
+    if (ctx.sub === 'claim') {
+      const owner = String(ctx.opt('owner')).trim();
+      if (!isSafeName(owner)) throw new UserError('That is not a valid in-game name.');
+      const online = s.roster.get(owner.toLowerCase());
+      const p = plots.claim(s, ctx.opt('name'), online ? online.username : owner, ctx.opt('chunks'));
+      ctx.note(`${p.name} for ${p.owner} at ${p.chunks.join(',')}`);
+      return ctx.ok('Plot claimed', info(p));
+    }
     const p = plots.get(s, ctx.opt('plot'));
     if (ctx.sub === 'info') return ctx.info(`Plot ${p.name}`, info(p));
+    if (ctx.sub === 'prefer') {
+      const me = ctx.self();
+      if (!plots.allowed(s, p, me)) throw new UserError(`You are not on the plot ${p.name}.`);
+      plots.settings(s).prefer[me.toLowerCase()] = p.name;
+      plots.saveSettings(s);
+      return ctx.ok('Plot tree', `The plot tree now sends you to ${p.name}.`);
+    }
+    if (ctx.sub === 'spawn') {
+      if (!plots.canManage(ctx, p)) throw new UserError(`Only ${p.owner} (linked with /link) or an admin can move the arrival spot of ${p.name}.`);
+      ctx.needOnline();
+      const who = ctx.opt('player') ? ctx.player() : ctx.self();
+      const { pos, chunk } = await s.position(who);
+      if (!pos) throw new UserError(`Could not read where ${who} is.`);
+      const inside = p.chunks.includes(overworldChunk(chunk));
+      p.spawn = pos;
+      plots.save(s);
+      ctx.note(`${p.name} ${vecText(pos)}`);
+      return ctx[inside ? 'ok' : 'warn']('Arrival spot set', `${p.name}: ${vecText(pos)}.${inside ? '' : `\nThat spot is outside the plot, in chunk ${chunk}.`}`);
+    }
+    if (ctx.sub === 'teleport') {
+      ctx.needOnline();
+      const who = ctx.player();
+      if (!p.spawn) throw new UserError(`${p.name} has no arrival spot yet. Use /plot spawn.`);
+      await s.teleportToPoint(who, p.spawn);
+      ctx.note(`${who} to ${p.name}`);
+      return ctx.ok('Teleported', `${who} went to ${p.name}.`);
+    }
     if (ctx.sub === 'trust' || ctx.sub === 'untrust') {
       if (!plots.canManage(ctx, p)) throw new UserError(`Only ${p.owner} (linked with /link) or an admin can change who is trusted on ${p.name}.`);
       const name = String(ctx.opt('name')).trim();

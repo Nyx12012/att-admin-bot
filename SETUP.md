@@ -81,7 +81,7 @@ The first start installs what the bot needs, which takes a minute. You are done 
 
 ```
 [discord] logged in as YourBot#1234
-[discord] 33 commands ready in Discord server ...
+[discord] 54 commands ready in Discord server ...
 [main] connected to the game console
 ```
 
@@ -98,6 +98,15 @@ and connects on its own when it comes up.
 4. `/permissions grant` lets your moderators use the commands they need, for example
    `command: kick` with `role: Moderator`.
 5. Tell your players about `/link start`, so their Discord account shows next to their name.
+   The shop, selling and the plot tree on Discord all need it.
+
+`/setup auto` makes a category with all the channels in one go. Only the online list can be seen by
+everyone, so open the others to your staff role in Discord.
+
+To set up the plot tree, stand where it should be and use `/plot tree action:set`. Use `radius: 0` to
+make the whole chunk the tree. Anyone on a plot who walks there is sent to their plot.
+
+To open a shop, install BotCore (below), then `/shop add` and `/sell add` for each item.
 
 `/help` lists everything.
 
@@ -117,7 +126,7 @@ up after a reboot.
 
 ## Start the bot with the game server (Windows, BotCore)
 
-With BotCore 1.1.0 the game server starts the bot itself, so nobody has to run `start.bat`.
+With BotCore the game server starts the bot itself, so nobody has to run `start.bat`.
 
 1. Put `BotCore.dll` in the server's `Mods` folder.
 2. Move the whole bot folder into the server's `UserData` folder (next to `Mods`) and name it
@@ -125,14 +134,17 @@ With BotCore 1.1.0 the game server starts the bot itself, so nobody has to run `
 3. Fill in `.env` there (step 4) and run `start.bat` there once. It installs what the bot needs
    and shows any setup problem. Close it when it says it is connected.
 4. Start the server. Its log shows `Started the Discord bot`. The bot writes its own log to
-   `UserData\ATT-Admin-Bot\logs\bot.log`, and stops by itself when the server stops.
+   `UserData\ATT-Admin-Bot\logs\bot.log`. It stays up through server restarts and reconnects by
+   itself. After 10 minutes with no server it stops, and the next server start brings it back.
 
 Node.js still has to be installed. If you do not want to install it, put a portable `node.exe` in
 `UserData\ATT-Admin-Bot\node\`. To turn autostart off, create an empty file
-`UserData\BotCore\autostart-off.txt`. Only one copy of the bot runs at a time, so starting
-`start.bat` while the server's copy runs just says it is already running.
+`UserData\BotCore\autostart-off.txt`. Only one copy of a Discord bot runs at a time on a PC, even
+from another folder, so starting `start.bat` while the server's copy runs just says it is already
+running.
 
-The bot is offline while the server is off, so `/status` and the online list say nothing then.
+While the server restarts, the bot stays online and commands that need the game say it is not
+connected.
 The Linux docker kit runs the game under Wine: keep running the bot with pm2 there.
 
 ## More than one game server
@@ -149,8 +161,8 @@ computer, connect the two over a VPN (Tailscale, WireGuard) or an SSH tunnel, th
 
 ## Optional: BotCore
 
-For `/atm` and `/mail`, put `BotCore.dll` in the game server's `Mods` folder and restart the
-server. See [botcore/README.md](botcore/README.md).
+For `/atm`, `/mail`, `/shop`, `/sell`, `/balance` and `/withdraw`, put `BotCore.dll` (1.2.0 or newer) in
+the game server's `Mods` folder and restart the server. See [botcore/README.md](botcore/README.md).
 
 ## Troubleshooting
 
@@ -162,5 +174,6 @@ server. See [botcore/README.md](botcore/README.md).
 | `the console refused the token` | The token is old. The Server launcher writes a new one each time it starts the server: copy the current one, or leave `ATT_CONSOLE_TOKEN` empty so the bot reads the file. |
 | `cannot reach the console yet` | The game server is not running, or the host or port is wrong. |
 | No slash commands in Discord | `DISCORD_GUILD_ID` is wrong, or the bot was added without `applications.commands`. Add it again with the link from step 2. |
+| `/shop` or `/sell` say the server answered in a way the bot does not understand | Update BotCore to 1.2.0 or newer. |
 | Commands answer "is not connected right now" | The bot lost the console. It reconnects by itself; check the game server. |
 | Right after a server restart, commands are slow or time out | A restarting server holds commands for one to four minutes while the world loads. Wait. |

@@ -5,7 +5,7 @@ const { Audit } = require('./core/audit');
 const { Registry } = require('./core/registry');
 const { GameServer } = require('./game/server');
 
-const FEATURES = ['links', 'bans', 'logs', 'playerlist', 'cleanup', 'plots', 'announce', 'reports'];
+const FEATURES = ['links', 'bans', 'logs', 'playerlist', 'cleanup', 'plots', 'announce', 'reports', 'economy', 'alchemy', 'stats', 'autobuff', 'markers'];
 
 const STATS = [
   'health', 'maxhealth', 'speed', 'damage', 'poison', 'hunger', 'fullness', 'damageprotection', 'luminosity',

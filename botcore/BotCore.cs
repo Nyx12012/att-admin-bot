@@ -13,7 +13,7 @@ namespace BotCore
 {
     public class Entry : MelonMod
     {
-        public const string Version = "1.1.0";
+        public const string Version = "1.2.0";
 
         bool _registered;
 

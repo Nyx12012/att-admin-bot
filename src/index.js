@@ -41,8 +41,12 @@ if (!cfg.envFile && !process.env.DISCORD_TOKEN) fail(noEnvMessage());
 if (cfg.envFile && cfg.envFile !== '.env') console.warn(`Read the settings from "${cfg.envFile}". It works, but rename it to .env when you can (SETUP.md, step 4).`);
 if (!cfg.discordToken) fail(`DISCORD_TOKEN is empty in ${cfg.envFile || '.env'}. See SETUP.md, step 2.`);
 
-const held = autostart.lock(cfg.dataDir);
-if (!held.ok) fail(`The bot is already running (process ${held.pid}). Close the other copy first.`);
+let shutdown = async () => process.exit(0);
+const held = autostart.lock(cfg.dataDir, {
+  token: cfg.discordToken,
+  onLost: (pid) => shutdown(`Another copy of this bot took over (process ${pid}), so this one stops.`),
+});
+if (!held.ok) fail(`This Discord bot is already running${held.pid ? ` (process ${held.pid})` : ''}. Close the other copy first.`);
 
 for (const s of cfg.servers) {
   if (!s.guildId) console.warn(`Server "${s.id}" has no DISCORD_GUILD_ID, so no slash commands will show up for it.`);
@@ -68,16 +72,21 @@ if (process.argv.includes('--register-only')) {
   bot.client.login(cfg.discordToken).catch((e) => fail(`Discord login failed: ${e.message}`));
 } else {
   let stopping = false;
-  const shutdown = async (why) => {
+  shutdown = async (why) => {
     if (stopping) return;
     stopping = true;
     console.log(why || 'Stopping...');
+    setTimeout(() => process.exit(0), 15000).unref();
     await bot.stop().catch(() => {});
     process.exit(0);
   };
   if (serverPid) {
-    console.log(`Started by BotCore for the game server (process ${serverPid}). The bot stops when the server stops.`);
-    autostart.watch(serverPid, () => shutdown('The game server stopped, so the bot stops too.'));
+    console.log(`Started by BotCore for the game server (process ${serverPid}). The bot stays up through restarts and stops after 10 minutes with no server.`);
+    autostart.watch({
+      pid: serverPid,
+      online: () => [...bot.servers.values()].some((s) => s.online),
+      onIdle: () => shutdown('No game server for 10 minutes, so the bot stops too. The next server start brings it back.'),
+    });
   }
   bot.start().catch((e) => fail(`Discord login failed: ${String(e.message).replace(/\.+$/, '')}. Check DISCORD_TOKEN in ${cfg.envFile || '.env'}.`));
   process.on('SIGINT', () => shutdown());

@@ -6,9 +6,13 @@ const GROUPS = [
   ['Players', ['player', 'tp', 'location', 'home', 'kill', 'heal', 'godmode', 'stat', 'spawn', 'kit']],
   ['World and server', ['time', 'settings', 'save', 'festival', 'world', 'cmd']],
   ['Cleanup', ['cleanup']],
-  ['Plots', ['plot']],
+  ['Plots', ['plot', 'chunk']],
   ['Fun', ['fun', 'buff']],
-  ['Needs the BotCore server mod', ['atm', 'mail']],
+  ['Alchemy', ['alchemy']],
+  ['Fun and numbers', ['stats', 'playtime', 'autobuff']],
+  ['Admin tools', ['controlpanel', 'cc', 'string', 'chunks', 'items', 'report', 'say', 'embed', 'poll']],
+  ['Cleanup by hand', ['despawn', 'despawnmenu', 'wipe']],
+  ['Needs the BotCore server mod', ['shop', 'sell', 'balance', 'withdraw', 'atm', 'mail']],
 ];
 
 module.exports = {

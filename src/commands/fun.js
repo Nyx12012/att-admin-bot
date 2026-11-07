@@ -1,6 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { addPlayer, addInt, addBool } = require('../core/opts');
-const { UserError } = require('../game/text');
+const { UserError, isSafeName } = require('../game/text');
+
+const SPRIGGULL = 62050;
 
 const smiting = new Set();
 
@@ -39,6 +41,11 @@ module.exports = {
     .addSubcommand((s) => addBool(addPlayer(s.setName('featherweight').setDescription('Carry anything without weight')), 'on', 'On or off'))
     .addSubcommand((s) => addBool(addPlayer(s.setName('nohunger').setDescription('Never get hungry')), 'on', 'On or off'))
     .addSubcommand((s) => addPlayer(s.setName('clarity').setDescription('Remove nightmare')))
+    .addSubcommand((s) => addPlayer(s.setName('chicken').setDescription('Drop a live spriggull in front of a player')))
+    .addSubcommand((s) => addInt(addPlayer(s.setName('hearts').setDescription('Set how many hearts a player has')), 'hearts', 'Hearts, 8 is normal', { min: 1, max: 96 }))
+    .addSubcommand((s) => addPlayer(s.setName('meeting').setDescription('Bring everyone online to one player'), { description: 'Everyone goes to this player' }))
+    .addSubcommand((s) => addPlayer(addPlayer(s.setName('surprise').setDescription('Drop a player from the sky onto another'), { description: 'Who falls' }), { name: 'target', description: 'Who they land on' }))
+    .addSubcommand((s) => addPlayer(s.setName('void').setDescription('Send a player under the world')))
     .addSubcommand((s) => s.setName('forgeall').setDescription('Finish every unforged blade on the map')),
   access: 'admin',
 
@@ -50,6 +57,11 @@ module.exports = {
     }
     const name = ctx.player();
     ctx.note(name);
+    if (ctx.sub === 'meeting') {
+      const others = s.players().map((p) => p.username).filter((n) => n !== name && isSafeName(n));
+      for (const other of others) await s.teleportToPlayer(other, name);
+      return ctx.ok('Meeting', `${others.length} player(s) went to ${name}.`);
+    }
     switch (ctx.sub) {
       case 'smite': {
         const failed = await smite(s, name);
@@ -70,6 +82,26 @@ module.exports = {
       case 'nohunger':
         await s.run(`player set-stat "${name}" hunger ${ctx.opt('on') ? 2 : 0} Min`);
         return ctx.ok('No hunger', `${name}: ${ctx.opt('on') ? 'never hungry until a restart or until you turn it off' : 'normal hunger again'}.`);
+      case 'chicken':
+        await s.run(`spawn "${name}" ${SPRIGGULL}`);
+        return ctx.ok('Bawk', `A spriggull appeared in front of ${name}.`);
+      case 'hearts':
+        await s.setStat(name, 'maxhealth', ctx.opt('hearts') / 4);
+        await s.setStat(name, 'health', ctx.opt('hearts') / 4);
+        return ctx.ok('Hearts', `${name} now has ${ctx.opt('hearts')} hearts.`);
+      case 'surprise': {
+        const target = ctx.player('target');
+        const { pos } = await s.position(target);
+        if (!pos) throw new UserError(`Could not read where ${target} is.`);
+        await s.teleportToPoint(name, [pos[0], pos[1] + 30, pos[2]]);
+        return ctx.ok('Surprise', `${name} is falling onto ${target}.`);
+      }
+      case 'void': {
+        const { pos } = await s.position(name);
+        if (!pos) throw new UserError(`Could not read where ${name} is.`);
+        await s.teleportToPoint(name, [pos[0], -100, pos[2]]);
+        return ctx.ok('Into the void', `${name} went under the world.`);
+      }
       default:
         await s.setStat(name, 'nightmare', 0);
         return ctx.ok('Clarity', `${name} has no nightmare now.`);

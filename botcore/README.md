@@ -6,7 +6,7 @@ A small, optional server mod for the bot. It does two things:
   players up on Alta's old servers, which are gone, so on a normal server they fail with "Failed
   sending request". BotCore answers those lookups from the players online right now and from
   `users.json` in `%APPDATA%\TheModdingTavern`, the file TavernLib already keeps. That turns on
-  `/atm` and `/mail`.
+  `/atm`, `/mail`, `/shop`, `/sell`, `/balance` and `/withdraw`.
 - **Starts the bot with the server.** If the bot is in the server's `UserData\ATT-Admin-Bot`
   folder, BotCore starts it when the server starts, and the bot stops when the server stops. See
   "Start the bot with the game server" in SETUP.md.
@@ -17,7 +17,7 @@ Nothing else in the game changes.
 
 1. Stop the game server.
 2. Put `BotCore.dll` in the server's `Mods` folder.
-3. Start the server. Its log shows `BotCore 1.1.0: 6 commands ready`, and `Started the Discord
+3. Start the server. Its log shows `BotCore 1.2.0: 8 commands ready`, and `Started the Discord
    bot` when the bot is in `UserData\ATT-Admin-Bot`.
 
 To turn the autostart off, create an empty file `UserData\BotCore\autostart-off.txt`.
@@ -26,6 +26,10 @@ To turn the autostart off, create an empty file `UserData\BotCore\autostart-off.
 
 - `botcore version`
 - `botcore user <name or id>`: `online <id> <name>`, `offline <id> <name>` or `unknown`
+- `botcore take <player> <item> <max> [count|take] [all|hands|belt]`: count or remove carried items,
+  answers `count <n> <refused>` or `taken <n> <refused>`
+- `botcore ground <x> <z> <from height>`: the height of the ground under a point, answers
+  `ground <y>` or `none`
 - `botcore heal`, `botcore stats`, `botcore sweep count|run`: older helpers. The bot does not use
   them; it uses TavernLib's stat commands and the game's own `wacky destroy-free` instead.
 

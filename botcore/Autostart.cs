@@ -42,8 +42,8 @@ namespace BotCore
                 int pid = Process.GetCurrentProcess().Id;
                 ProcessStartInfo psi = new ProcessStartInfo(node, "src\\index.js --server-pid " + pid.ToString(CultureInfo.InvariantCulture));
                 psi.WorkingDirectory = folder;
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
+                psi.UseShellExecute = true;
+                psi.WindowStyle = ProcessWindowStyle.Hidden;
                 Process started = Process.Start(psi);
                 log.Msg("Started the Discord bot (pid " + started.Id.ToString(CultureInfo.InvariantCulture) + "), log: " + Path.Combine(Path.Combine(folder, "logs"), "bot.log"));
             }

@@ -1,6 +1,6 @@
 {
   "name": "att-admin-bot",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "A self-hosted Discord bot for running an A Township Tale server on TavernLib.",
   "main": "src/index.js",
   "private": true,
@@ -14,6 +14,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "att-string-transcoder": "^3.1.2",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
     "tavern-client": "^1.0.1"

@@ -94,7 +94,7 @@ function options(sub, values = {}, group) {
 }
 
 class FakeInteraction {
-  constructor({ command, sub, group, values, userId = 'u1', admin = true, owner = false, guildId = 'g1', confirm = true, roles = [], autocomplete = false }) {
+  constructor({ command, sub, group, values, userId = 'u1', admin = true, owner = false, guildId = 'g1', confirm = true, picks = [], roles = [], autocomplete = false }) {
     this.id = String(Math.random()).slice(2);
     this.commandName = command;
     this.guildId = guildId;
@@ -109,6 +109,7 @@ class FakeInteraction {
     this.deferred = false;
     this.replied = false;
     this.confirm = confirm;
+    this.picks = [...picks];
     this.auto = autocomplete;
     this.responded = null;
     this.channel = null;
@@ -143,7 +144,8 @@ class FakeInteraction {
     const self = this;
     return {
       awaitMessageComponent: async ({ filter }) => {
-        const press = { user: self.user, customId: `confirm:${self.id}:${self.confirm ? 'yes' : 'no'}`, deferUpdate: async () => {} };
+        const value = self.picks && self.picks.length ? self.picks.shift() : null;
+        const press = { user: self.user, customId: `confirm:${self.id}:${self.confirm ? 'yes' : 'no'}`, values: value == null ? [] : [value], deferUpdate: async () => {} };
         if (filter && !filter(press)) throw new Error('filtered');
         return press;
       },

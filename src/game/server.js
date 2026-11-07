@@ -6,6 +6,7 @@ const { quoteName, quoteText, vec, vecText, chunkName, isSafeName, UserError } =
 const EVENTS = [
   'PlayerJoined', 'PlayerLeft', 'PlayerKilled', 'PlayerStateChanged', 'PlayerMovedChunk',
   'ObjectKilled', 'ServerSettingsChanged', 'SocialTabletPlayerReported', 'SocialTabletPlayerBanned',
+  'AtmBalanceChanged', 'TradeDeckUsed', 'PopulationModified', 'TrialStarted', 'TrialFinished',
 ];
 
 const AREAS = [
@@ -31,6 +32,8 @@ class GameServer extends EventEmitter {
     this.readyAt = null;
     this.lastError = null;
     this.homeLocks = new Map();
+    this.wantedBy = new Map();
+    this.selectChain = Promise.resolve();
     this.log = options.log || ((level, msg) => console[level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'](`[${this.id}] ${msg}`));
     this.tavern = options.client || new TavernClient({
       host: config.host,
@@ -234,6 +237,71 @@ class GameServer extends EventEmitter {
       this.homeLocks.delete(key);
     }
     return restored;
+  }
+
+  async inventory(name) {
+    const r = await this.value(`player inventory ${quoteName(name)}`);
+    const inv = Array.isArray(r) ? r[0] : r;
+    return inv && typeof inv === 'object' ? inv : null;
+  }
+
+  want(type, owner, on) {
+    let owners = this.wantedBy.get(type);
+    if (!owners) {
+      owners = new Set();
+      this.wantedBy.set(type, owners);
+    }
+    const before = owners.size > 0;
+    if (on) owners.add(owner);
+    else owners.delete(owner);
+    const after = owners.size > 0;
+    if (after && !before) this.tavern.subscribe(type).catch(() => {});
+    if (!after && before && this.tavern.unsubscribe) this.tavern.unsubscribe(type).catch(() => {});
+  }
+
+  selected(fn) {
+    const run = this.selectChain.then(fn, fn);
+    this.selectChain = run.catch(() => {});
+    return run;
+  }
+
+  async pick(id) {
+    const n = Number(id);
+    const sel = await this.run(`select ${n}`, { allowError: true });
+    if (sel.error) return false;
+    const m = String(sel.resultString ?? '').match(/^Selected:\s*(\d+)/);
+    return Boolean(m) && Number(m[1]) === n;
+  }
+
+  destroyEntity(id) {
+    return this.selected(async () => {
+      if (!(await this.pick(id))) return false;
+      const r = await this.run('select destroy', { allowError: true });
+      return !r.error;
+    });
+  }
+
+  entityString(id) {
+    return this.selected(async () => {
+      if (!(await this.pick(id))) return null;
+      const v = await this.value('select tostring').catch(() => null);
+      return typeof v === 'string' ? v : null;
+    });
+  }
+
+  async heal(name, food = false) {
+    const reset = { health: 'Max', poison: 'Min', nightmare: 'Min', cripplehealth: 'Max', hunger: 'Max' };
+    const stats = await this.stats(name);
+    const done = [];
+    for (const st of stats) {
+      const key = String(st.Name).toLowerCase();
+      if (!reset[key] || (key === 'hunger' && !food)) continue;
+      const value = reset[key] === 'Max' ? st.Max : st.Min;
+      if (Number(st.Value) === Number(value)) continue;
+      await this.setStat(name, st.Name, value);
+      done.push(`${st.Name} ${Number(st.Value).toFixed(2)} to ${value}`);
+    }
+    return done;
   }
 
   async stats(name) {

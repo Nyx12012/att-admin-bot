@@ -73,11 +73,102 @@ test('a stale lock file from a crash does not block the start', () => {
   r.release();
 });
 
-test('the bot notices when the game server process is gone', async () => {
-  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 300)']);
-  const gone = await new Promise((res) => {
-    const t = autostart.watch(child.pid, () => res(true), 50);
-    setTimeout(() => { clearInterval(t); res(false); }, 5000);
-  });
-  assert.strictEqual(gone, true);
+function napping(ms) {
+  return spawn(process.execPath, ['-e', `setTimeout(() => {}, ${ms})`]);
+}
+
+function wait(ms) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+test('the same Discord token is refused from another folder', async () => {
+  const shared = tempDir();
+  const child = napping(20000);
+  fs.writeFileSync(autostart.tokenFile('abc', shared), String(child.pid));
+  const r = autostart.lock(tempDir(), { token: 'abc', shared });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.pid, child.pid);
+  const other = autostart.lock(tempDir(), { token: 'xyz', shared });
+  assert.strictEqual(other.ok, true);
+  other.release();
+  assert.ok(!fs.existsSync(autostart.tokenFile('xyz', shared)));
+  child.kill();
+  await new Promise((res) => child.on('exit', res));
+  const after = autostart.lock(tempDir(), { token: 'abc', shared });
+  assert.strictEqual(after.ok, true);
+  after.release();
+});
+
+test('a refused folder lock frees the token lock', async () => {
+  const shared = tempDir();
+  const dir = tempDir();
+  const child = napping(20000);
+  fs.writeFileSync(path.join(dir, 'bot.pid'), String(child.pid));
+  const r = autostart.lock(dir, { token: 'abc', shared });
+  assert.strictEqual(r.ok, false);
+  assert.ok(!fs.existsSync(autostart.tokenFile('abc', shared)));
+  child.kill();
+  await new Promise((res) => child.on('exit', res));
+});
+
+test('a failed heartbeat does not lose the lock', () => {
+  const file = path.join(tempDir(), 'bot.pid');
+  const lost = () => assert.fail('it should not count as lost');
+  fs.mkdirSync(file);
+  assert.doesNotThrow(() => autostart.beat(file, lost));
+  fs.rmdirSync(file);
+  autostart.beat(file, lost);
+  assert.strictEqual(fs.readFileSync(file, 'utf8'), String(process.pid));
+});
+
+test('a copy that lost the lock to a live copy is told to stop', async () => {
+  const file = path.join(tempDir(), 'bot.pid');
+  const child = napping(20000);
+  fs.writeFileSync(file, String(child.pid));
+  let seen = null;
+  autostart.beat(file, (pid) => { seen = pid; });
+  assert.strictEqual(seen, child.pid);
+  child.kill();
+  await new Promise((res) => child.on('exit', res));
+  seen = null;
+  autostart.beat(file, (pid) => { seen = pid; });
+  assert.strictEqual(seen, null);
+  assert.strictEqual(fs.readFileSync(file, 'utf8'), String(process.pid));
+});
+
+test('the bot stays up while a server is connected, and stops after the limit without one', async () => {
+  let online = true;
+  let idled = false;
+  const t = autostart.watch({ pid: null, online: () => online, onIdle: () => { idled = true; }, limit: 200, every: 20 });
+  await wait(500);
+  assert.strictEqual(idled, false);
+  online = false;
+  await wait(800);
+  assert.strictEqual(idled, true);
+  clearInterval(t);
+});
+
+test('a server that comes back resets the limit', async () => {
+  let online = false;
+  let idled = false;
+  const t = autostart.watch({ pid: null, online: () => online, onIdle: () => { idled = true; }, limit: 600, every: 20 });
+  await wait(300);
+  online = true;
+  await wait(100);
+  online = false;
+  await wait(300);
+  assert.strictEqual(idled, false);
+  clearInterval(t);
+});
+
+test('the first server process keeps the bot up until it is gone', async () => {
+  const child = napping(1000);
+  let idled = false;
+  const t = autostart.watch({ pid: child.pid, online: () => false, onIdle: () => { idled = true; }, limit: 200, every: 20 });
+  await wait(600);
+  assert.strictEqual(idled, false);
+  await new Promise((res) => child.on('exit', res));
+  await wait(800);
+  assert.strictEqual(idled, true);
+  clearInterval(t);
 });
