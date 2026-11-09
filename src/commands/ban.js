@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { addText, addInt } = require('../core/opts');
 const { isSafeName, UserError } = require('../game/text');
+const targets = require('../core/targets');
 
 function nameOpt(s, description) {
   return s.addStringOption((o) => o.setName('player').setDescription(description).setRequired(true).setAutocomplete(true).setMaxLength(32));
@@ -19,8 +20,8 @@ module.exports = {
   async autocomplete(ctx, focused) {
     if (!ctx.server) return [];
     const q = String(focused.value).toLowerCase();
-    const pool = ctx.sub === 'add' ? ctx.server.players().map((p) => p.username) : ctx.bot.bans.list(ctx.server).map((b) => b.username);
-    return pool.filter((n) => n.toLowerCase().includes(q));
+    if (ctx.sub === 'add') return targets.choices(ctx.bot, ctx.server, focused.value);
+    return ctx.bot.bans.list(ctx.server).map((b) => b.username).filter((n) => n.toLowerCase().includes(q));
   },
 
   async run(ctx) {
@@ -30,7 +31,7 @@ module.exports = {
       const lines = list.map((b) => `**${b.username}** ${b.until ? `until <t:${Math.floor(b.until / 1000)}:R>` : 'permanent'}: ${b.reason}`);
       return ctx.info(`Bans on ${s.name}: ${list.length}`, lines.join('\n') || 'Nobody is banned.');
     }
-    const input = String(ctx.opt('player')).trim();
+    const input = ctx.name('player');
     if (ctx.sub === 'info') {
       const b = ctx.bot.bans.get(s, input);
       if (!b) return ctx.warn('Not banned', `${input} is not banned.`);

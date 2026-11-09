@@ -31,7 +31,7 @@ module.exports = {
       ctx.note(`${name}: ${text.length} characters`);
       return ctx.ok('Spawned', `The item appeared in front of ${name}.`);
     }
-    const user = await s.lookup(String(ctx.opt('name')).trim());
+    const user = await s.lookup(ctx.name('name'));
     await s.run(`trade post-string "${user.username}" ${text}`);
     ctx.note(`${user.username}: ${text.length} characters`);
     return ctx.ok('Mailed', `The item is waiting in ${user.username}'s mailbox.`);

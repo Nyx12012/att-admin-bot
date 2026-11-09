@@ -15,7 +15,7 @@ function show(kind, row) {
 
 function nameOf(ctx) {
   const given = ctx.opt('player');
-  if (given) return String(given).trim();
+  if (given) return ctx.name('player');
   const link = ctx.bot.links.of(ctx.server, ctx.user.id);
   if (!link) throw new UserError('Pick a player, or use /link to see your own.');
   return link.username;

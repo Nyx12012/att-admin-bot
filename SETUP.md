@@ -4,7 +4,8 @@ About ten minutes. You need:
 
 - Your A Township Tale server running with TavernLauncher (the Server launcher on Windows, or the
   Linux docker kit). TavernLib is part of that setup.
-- Node.js 20 or newer, free from https://nodejs.org (pick the LTS version).
+- Node.js 20 or newer, free from https://nodejs.org (pick the LTS version). With BotCore on Windows
+  you can skip this: BotCore downloads Node.js when none is found.
 - A Discord server where you are the owner or an admin.
 
 The bot connects to the game server's console on port 1760. The easy way is to run the bot on
@@ -13,7 +14,8 @@ the same computer as the game server.
 ## 1. Get the bot
 
 Download this repository (Code, Download ZIP on GitHub) and unzip it somewhere simple, like
-`C:\ATT-Admin-Bot`. Avoid OneDrive folders.
+`C:\ATT-Admin-Bot`. Avoid OneDrive folders. On Windows with BotCore, unzip it into the server's
+`UserData` folder instead and skip step 5 (see "Start the bot with the game server").
 
 ## 2. Make the Discord bot
 
@@ -37,7 +39,7 @@ commas.
 
 ## 4. Fill in the settings
 
-Copy `.env.example` and name the copy `.env`. It must sit in the same folder as `start.bat`,
+Copy `.env.example` and name the copy `.env`. It must sit in the same folder as
 `package.json` and the `src` folder. Windows hides file endings by default, so first turn them on
 in File Explorer (View, Show, File name extensions): Notepad likes to save `.env.txt`, which looks
 like `.env` while endings are hidden. The bot reads `.env.txt` too and tells you to rename it.
@@ -126,26 +128,53 @@ up after a reboot.
 
 ## Start the bot with the game server (Windows, BotCore)
 
-With BotCore the game server starts the bot itself, so nobody has to run `start.bat`.
+With BotCore the game server starts the bot itself. Put the files in place, fill in `.env` and
+start the server. There is no folder to rename and no `start.bat` to run.
 
 1. Put `BotCore.dll` in the server's `Mods` folder.
-2. Move the whole bot folder into the server's `UserData` folder (next to `Mods`) and name it
-   `ATT-Admin-Bot`, so you have `UserData\ATT-Admin-Bot\start.bat`.
-3. Fill in `.env` there (step 4) and run `start.bat` there once. It installs what the bot needs
-   and shows any setup problem. Close it when it says it is connected.
-4. Start the server. Its log shows `Started the Discord bot`. The bot writes its own log to
-   `UserData\ATT-Admin-Bot\logs\bot.log`. It stays up through server restarts and reconnects by
-   itself. After 10 minutes with no server it stops, and the next server start brings it back.
+2. Unzip the bot into the server's `UserData` folder (next to `Mods`). Any folder name works,
+   including the `att-admin-bot-2.1.0` a GitHub download unpacks as, and the extra folder inside it
+   that some unzip tools add.
+3. Fill in `.env` there (step 4).
+4. Start the server. On the first start BotCore installs what the bot needs in the background. That
+   takes about a minute and the server does not wait for it. Then the server log shows `Started the
+   Discord bot`. The bot writes its own log to `logs\bot.log` in its folder, and the install writes
+   to `logs\install.log`. If the install fails the server carries on, the log says why, and the
+   next server start tries again.
 
-Node.js still has to be installed. If you do not want to install it, put a portable `node.exe` in
-`UserData\ATT-Admin-Bot\node\`. To turn autostart off, create an empty file
-`UserData\BotCore\autostart-off.txt`. Only one copy of a Discord bot runs at a time on a PC, even
-from another folder, so starting `start.bat` while the server's copy runs just says it is already
-running.
+If Node.js is not on the PC, BotCore downloads the official Windows zip of Node.js 24 from
+nodejs.org into the bot's `node` folder, checks its SHA-256 and uses it. To use your own, install
+Node.js or put `node.exe` in that `node` folder first.
+
+The bot stays up until someone stops it, through server restarts and after the server closes.
+`/bot restart` restarts it. `/bot stop` stops it, and then only the next server start or a manual
+`start.bat` brings it back.
+
+Only one copy of a Discord bot runs at a time on a PC, even from another folder, so starting
+`start.bat` while the server's copy runs just says it is already running. To turn all of this off,
+create an empty file `UserData\BotCore\autostart-off.txt`.
+
+If `UserData` holds several copies of the bot, the one with a `.env` is started and the server log
+says which. Coin balances and settings live in each copy's `data` folder, so when you unpack a new
+version beside the old one, copy `.env` and `data` across before you remove the old one.
 
 While the server restarts, the bot stays online and commands that need the game say it is not
 connected.
 The Linux docker kit runs the game under Wine: keep running the bot with pm2 there.
+
+## Starting and closing the server from Discord
+
+`/boot` starts the server, `/shutdown` saves and closes it, `/restart` does both. They are for admins,
+and `/permissions grant` opens any of them to a role.
+
+With BotCore 1.3.0 and the bot on the same PC as the server, there is nothing to set up: BotCore
+records how the server was started, and `/boot` starts it the same way. Start the server by hand
+once after installing BotCore so it has something to record. If you host from TavernLauncher, keep
+the launcher open for logins, and do not press its Start button while the bot's server runs.
+
+Docker and other setups: set `SERVER_START` in `.env` to a script or command that starts your server
+(or `"start"` on a server in `servers.json`). The bot must be able to run it, and it wins over the
+recorded start.
 
 ## More than one game server
 
@@ -161,7 +190,7 @@ computer, connect the two over a VPN (Tailscale, WireGuard) or an SSH tunnel, th
 
 ## Optional: BotCore
 
-For `/atm`, `/mail`, `/shop`, `/sell`, `/balance` and `/withdraw`, put `BotCore.dll` (1.2.0 or newer) in
+For `/atm`, `/mail`, `/shop`, `/sell`, `/balance` and `/withdraw`, put `BotCore.dll` (1.4.0 or newer) in
 the game server's `Mods` folder and restart the server. See [botcore/README.md](botcore/README.md).
 
 ## Troubleshooting
@@ -174,6 +203,7 @@ the game server's `Mods` folder and restart the server. See [botcore/README.md](
 | `the console refused the token` | The token is old. The Server launcher writes a new one each time it starts the server: copy the current one, or leave `ATT_CONSOLE_TOKEN` empty so the bot reads the file. |
 | `cannot reach the console yet` | The game server is not running, or the host or port is wrong. |
 | No slash commands in Discord | `DISCORD_GUILD_ID` is wrong, or the bot was added without `applications.commands`. Add it again with the link from step 2. |
-| `/shop` or `/sell` say the server answered in a way the bot does not understand | Update BotCore to 1.2.0 or newer. |
+| `/shop` or `/sell` say the server answered in a way the bot does not understand | Update BotCore to 1.4.0 or newer. |
+| `Bot autostart: npm install failed` in the server log | Open `logs\install.log` in the bot's folder. Usually no internet. The next server start tries again. |
 | Commands answer "is not connected right now" | The bot lost the console. It reconnects by itself; check the game server. |
 | Right after a server restart, commands are slow or time out | A restarting server holds commands for one to four minutes while the world loads. Wait. |

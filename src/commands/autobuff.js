@@ -22,7 +22,7 @@ module.exports = {
     if (ctx.sub === 'list') {
       return ctx.info('Autobuff', Object.entries(doc).map(([n, b]) => `**${n}**: ${b}`).join('\n') || 'Nobody yet.');
     }
-    const name = String(ctx.opt('name')).trim();
+    const name = ctx.name('name');
     if (!isSafeName(name)) throw new UserError('That is not a valid in-game name.');
     if (ctx.sub === 'clear') {
       delete doc[name.toLowerCase()];

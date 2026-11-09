@@ -1,5 +1,7 @@
 const items = require('./items');
 const { AREAS } = require('../game/server');
+const targets = require('./targets');
+const materials = require('./materials');
 
 function matches(list, query) {
   const q = String(query || '').toLowerCase();
@@ -19,10 +21,12 @@ async function generic(ctx, focused) {
   switch (focused.name) {
     case 'player':
     case 'target':
-      return ctx.server ? matches(ctx.server.players().map((p) => p.username), q) : [];
+      return ctx.server ? targets.choices(ctx.bot, ctx.server, q) : [];
     case 'item':
     case 'items':
       return items.search(q, { spawn: ctx.command && ctx.command.data.name === 'spawn' }).map((i) => ({ name: `${i.name} (${i.hash})`, value: String(i.hash) }));
+    case 'material':
+      return materials.search(q);
     case 'area':
       return matches(AREAS, q);
     case 'location':

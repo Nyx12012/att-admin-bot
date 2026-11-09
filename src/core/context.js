@@ -1,6 +1,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const { embed } = require('./ui');
 const { UserError, isSafeName } = require('../game/text');
+const targets = require('./targets');
 
 class Context {
   constructor(bot, interaction, command) {
@@ -57,10 +58,29 @@ class Context {
       if (!required) return null;
       throw new UserError('Pick a player.');
     }
-    const p = s.find(value);
-    if (!p) throw new UserError(`${value} is not online.`);
+    const t = targets.resolve(this.bot, s, value);
+    const p = t.via === 'name' ? s.find(t.username) : s.roster.get(t.username.toLowerCase());
+    if (!p) {
+      if (t.via === 'number') throw new UserError(`Number ${t.n} was ${t.username}, who is not online now. Use /l again.`);
+      if (t.via === 'mention') throw new UserError(`<@${t.discordId}> is ${t.username}, who is not online.`);
+      throw new UserError(`${t.username} is not online.`);
+    }
     if (!isSafeName(p.username)) throw new UserError(`"${String(p.username).slice(0, 40)}" is not a valid player name, so the bot will not send it to the console.`);
     return p.username;
+  }
+
+  name(name = 'player', { required = true } = {}) {
+    const value = this.opt(name);
+    if (value == null || String(value).trim() === '') {
+      if (!required) return null;
+      throw new UserError('Pick a player.');
+    }
+    const t = targets.resolve(this.bot, this.needServer(), value);
+    if (t.via === 'name') {
+      const online = this.server.roster && this.server.roster.get(t.username.toLowerCase());
+      if (online) return online.username;
+    }
+    return t.username;
   }
 
   self() {

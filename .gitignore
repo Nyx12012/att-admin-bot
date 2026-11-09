@@ -8,6 +8,7 @@ data/*
 !data/items.json
 logs/
 node/
+node.part/
 botcore/bin/
 *.log
 test/

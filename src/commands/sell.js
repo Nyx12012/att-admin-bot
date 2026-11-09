@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { addItem, addInt, addName, addBool } = require('../core/opts');
+const { addItem, addInt, addName, addBool, addMaterial } = require('../core/opts');
 const items = require('../core/items');
+const materials = require('../core/materials');
 const { UserError, own } = require('../game/text');
 
 function goods(s, description = 'What to sell') {
@@ -24,7 +25,7 @@ module.exports = {
     .setDescription('Sell items you carry to the bot for ATM coins (needs BotCore)')
     .addSubcommand((s) => s.setName('list').setDescription('What the bot buys and for how much'))
     .addSubcommand((s) => addInt(goods(s.setName('item').setDescription('Sell what you hold or carry, you confirm first')), 'amount', 'Most to sell (default all you carry)', { required: false, min: 1, max: 100 }))
-    .addSubcommand((s) => addInt(addInt(addItem(s.setName('add').setDescription('Set what the bot pays for an item')), 'price', 'Coins paid per item', { min: 1, max: 10000000 }), 'daily', 'Most one player can sell a day', { required: false, min: 1, max: 10000 }))
+    .addSubcommand((s) => addMaterial(addInt(addInt(addItem(s.setName('add').setDescription('Set what the bot pays for an item, or for one wood or metal of it')), 'price', 'Coins paid per item', { min: 1, max: 10000000 }), 'daily', 'Most one player can sell a day', { required: false, min: 1, max: 10000 })))
     .addSubcommand((s) => goods(s.setName('remove').setDescription('Stop buying an item'), 'Item to stop buying'))
     .addSubcommand((s) => addBool(s.setName('pause').setDescription('Pause or resume all buying'), 'on', 'True pauses, false resumes')),
   access: { list: 'everyone', item: 'everyone', '*': 'admin' },
@@ -33,9 +34,14 @@ module.exports = {
   async autocomplete(ctx, focused) {
     if (!ctx.server || focused.name !== 'goods') return [];
     const q = String(focused.value).toLowerCase();
-    return Object.values(ctx.bot.economy.buyback(ctx.server).items)
-      .filter((x) => x.name.toLowerCase().includes(q))
-      .map((x) => ({ name: `${x.name}: ${x.price} coins`, value: String(x.hash) }));
+    const all = ctx.bot.economy.buyback(ctx.server).items;
+    const rows = Object.entries(all)
+      .filter(([, x]) => x.name.toLowerCase().includes(q))
+      .map(([key, x]) => ({ name: `${x.name}: ${x.price} coins`, value: key }));
+    if (ctx.sub !== 'item') return rows;
+    const kinds = new Map(Object.values(all).filter((x) => x.material && !own(all, String(x.hash))).map((x) => [x.hash, x.base]));
+    const groups = [...kinds].filter(([, base]) => base.toLowerCase().includes(q)).map(([hash, base]) => ({ name: `${base}: any kind, priced by what you carry`, value: `all:${hash}` }));
+    return groups.concat(rows);
   },
 
   async run(ctx) {
@@ -52,16 +58,18 @@ module.exports = {
       if (!item || item.unknown) throw new UserError(`No item matches "${ctx.opt('item')}". Pick one from the list.`);
       if (!item.pickup) throw new UserError(`${item.name} cannot be picked up, so nobody could sell it.`);
       const price = ctx.opt('price');
-      eco.assertNoLoop(s, item.hash, { sell: price });
-      doc.items[String(item.hash)] = { hash: item.hash, name: item.name, price, daily: ctx.opt('daily') || null };
+      const material = materials.fromOption(ctx.opt('material'));
+      eco.assertNoLoop(s, item.hash, { sell: price, material: material && material.value });
+      const key = material ? `${item.hash}:${material.value}` : String(item.hash);
+      doc.items[key] = { hash: item.hash, name: materials.named(item.name, material), base: item.name, material: material ? material.value : null, price, daily: ctx.opt('daily') || null };
       eco.saveBuyback(s);
-      ctx.note(`${item.name} ${price}`);
-      return ctx.ok('Price set', priced(doc.items[String(item.hash)]));
+      ctx.note(`${doc.items[key].name} ${price}`);
+      return ctx.ok('Price set', priced(doc.items[key]));
     }
     if (ctx.sub === 'remove') {
       const x = find(doc, ctx.opt('goods'));
       if (!x) throw new UserError(`The bot does not buy "${ctx.opt('goods')}".`);
-      delete doc.items[String(x.hash)];
+      delete doc.items[x.material ? `${x.hash}:${x.material}` : String(x.hash)];
       eco.saveBuyback(s);
       ctx.note(x.name);
       return ctx.ok('Removed', x.name);
@@ -72,10 +80,10 @@ module.exports = {
       return ctx.ok('Buying', doc.paused ? 'Paused.' : 'Back on.');
     }
     if (!ctx.bot.links.of(s, ctx.user.id)) throw new UserError('Link your account with /link first, the bot pays your in-game name.');
-    const entry = find(doc, ctx.opt('goods'));
-    if (!entry) throw new UserError(`The bot does not buy "${ctx.opt('goods')}". See /sell list.`);
-    const r = await eco.sell(ctx, entry, ctx.opt('amount'));
+    const entries = eco.saleEntries(doc, ctx.opt('goods'));
+    if (!entries.length) throw new UserError(`The bot does not buy "${ctx.opt('goods')}". See /sell list.`);
+    const r = await eco.sell(ctx, entries, ctx.opt('amount'));
     if (!r) return null;
-    return ctx.ok('Sold', `You sold **${r.sold} x ${entry.name}** for **${r.paid} coins**. Your ATM holds ${r.balance}.`);
+    return ctx.ok('Sold', `You sold **${r.what}** for **${r.paid} coins**. Your ATM holds ${r.balance}.`);
   },
 };

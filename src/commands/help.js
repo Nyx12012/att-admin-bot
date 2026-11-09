@@ -1,10 +1,10 @@
 const { SlashCommandBuilder } = require('discord.js');
 
 const GROUPS = [
-  ['Getting started', ['setup', 'permissions', 'link', 'status', 'help']],
-  ['Moderation', ['players', 'kick', 'ban', 'message', 'announce', 'purge']],
+  ['Getting started', ['setup', 'permissions', 'link', 'status', 'help', 'bot']],
+  ['Moderation', ['players', 'l', 'kick', 'ban', 'message', 'announce', 'purge']],
   ['Players', ['player', 'tp', 'location', 'home', 'kill', 'heal', 'godmode', 'stat', 'spawn', 'kit']],
-  ['World and server', ['time', 'settings', 'save', 'festival', 'world', 'cmd']],
+  ['World and server', ['time', 'settings', 'save', 'boot', 'shutdown', 'restart', 'festival', 'world', 'cmd']],
   ['Cleanup', ['cleanup']],
   ['Plots', ['plot', 'chunk']],
   ['Fun', ['fun', 'buff']],

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -13,7 +15,7 @@ namespace BotCore
 {
     public class Entry : MelonMod
     {
-        public const string Version = "1.2.0";
+        public const string Version = "1.4.0";
 
         bool _registered;
 
@@ -31,6 +33,7 @@ namespace BotCore
                 string userData = Path.Combine(Directory.GetParent(modsDir).FullName, "UserData");
                 BotCoreCommands.Sweep.ProtectFilePath = Path.Combine(Path.Combine(userData, "BotCore"), "sweep-protect.txt");
 
+                RecordLaunch(userData, log);
                 Resolver.Apply(log);
                 Autostart.Run(userData, log);
 
@@ -46,6 +49,30 @@ namespace BotCore
             catch (Exception e)
             {
                 log.Error("BotCore " + Version + " failed to start: " + e);
+            }
+        }
+
+        static void RecordLaunch(string userData, MelonLogger.Instance log)
+        {
+            try
+            {
+                string[] args = Environment.GetCommandLineArgs();
+                if (Array.IndexOf(args, "/start_server") < 0) return;
+                string dir = Path.Combine(userData, "BotCore");
+                Directory.CreateDirectory(dir);
+                string file = Path.Combine(dir, "server-start.txt");
+                List<string> lines = new List<string>();
+                Process self = Process.GetCurrentProcess();
+                lines.Add(self.Id.ToString());
+                lines.Add(self.MainModule.FileName);
+                lines.Add(Environment.CurrentDirectory);
+                for (int i = 1; i < args.Length; i++) lines.Add(args[i]);
+                File.WriteAllLines(file, lines.ToArray());
+                BotCoreCommands.LaunchFile = file;
+            }
+            catch (Exception e)
+            {
+                log.Warning("BotCore could not record how this server was started, so /boot needs SERVER_START: " + e.Message);
             }
         }
 

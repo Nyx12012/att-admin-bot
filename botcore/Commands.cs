@@ -117,8 +117,34 @@ namespace BotCore
             return "none";
         }
 
-        [Command("take", "Remove carried items of one prefab. Mode count only counts. Where is all, hands or belt")]
-        public static string Take(Player player, int hash, int max, string mode = "take", string where = "all")
+        public static string LaunchFile;
+
+        [Command("startfile", "Where this server recorded how it was started")]
+        public static string StartFile()
+        {
+            return LaunchFile ?? "none";
+        }
+
+        [Command("carried", "Count carried items of one prefab, split by material")]
+        public static string Carried(Player player, int hash, string where = "all")
+        {
+            if (player == null) return "error no player";
+            PlayerCharacter character = player.PlayerCharacter;
+            PlayerController pc = player.PlayerController;
+            if (character == null || pc == null) return "error not spawned";
+            Taking t = new Taking();
+            t.Hash = (uint)hash;
+            t.Max = int.MaxValue;
+            t.Dry = true;
+            t.ByMaterial = new SortedDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            Walk(character, pc, where, t);
+            List<string> parts = new List<string>();
+            foreach (KeyValuePair<string, int> kv in t.ByMaterial) parts.Add(kv.Key + "=" + kv.Value.ToString(CultureInfo.InvariantCulture));
+            return "carried " + t.Refused.ToString(CultureInfo.InvariantCulture) + " " + (parts.Count == 0 ? "-" : string.Join("|", parts.ToArray()));
+        }
+
+        [Command("take", "Remove carried items of one prefab. Mode count only counts. Where is all, hands or belt. Material is any, none or a material name")]
+        public static string Take(Player player, int hash, int max, string mode = "take", string where = "all", string material = "any")
         {
             if (player == null) return "error no player";
             PlayerCharacter character = player.PlayerCharacter;
@@ -128,6 +154,13 @@ namespace BotCore
             t.Hash = (uint)hash;
             t.Max = max <= 0 ? int.MaxValue : max;
             t.Dry = mode == "count";
+            t.Material = material == "any" ? null : material;
+            Walk(character, pc, where, t);
+            return (t.Dry ? "count " : "taken ") + t.Count.ToString(CultureInfo.InvariantCulture) + " " + t.Refused.ToString(CultureInfo.InvariantCulture);
+        }
+
+        static void Walk(PlayerCharacter character, PlayerController pc, string where, Taking t)
+        {
             bool all = where == "all";
             if (all || where == "hands")
             {
@@ -136,7 +169,6 @@ namespace BotCore
             }
             if (all || where == "belt") WalkDocks(character.BeltDocks.Components, t);
             if (all) WalkDocks(character.BackDocks.Components, t);
-            return (t.Dry ? "count " : "taken ") + t.Count.ToString(CultureInfo.InvariantCulture) + " " + t.Refused.ToString(CultureInfo.InvariantCulture);
         }
 
         sealed class Taking
@@ -146,12 +178,39 @@ namespace BotCore
             public bool Dry;
             public int Count;
             public int Refused;
+            public string Material;
+            public SortedDictionary<string, int> ByMaterial;
         }
 
-        static bool Matches(Pickup p, uint hash)
+        static string MaterialOf(Pickup p)
+        {
+            PhysicalMaterialPart part = p.Entity.GetComponentInChildren<PhysicalMaterialPart>();
+            PhysicalMaterial m = part != null ? part.PhysicalMaterial : null;
+            return m != null ? m.name : "none";
+        }
+
+        static string Squash(string s)
+        {
+            return s.Replace(" ", "").ToLowerInvariant();
+        }
+
+        static bool Matches(Pickup p, Taking t)
         {
             NetworkEntity e = p != null ? p.Entity : null;
-            return e != null && !e.IsBeingDestroyed && e.Prefab != null && e.Prefab.Hash == hash;
+            if (e == null || e.IsBeingDestroyed || e.Prefab == null || e.Prefab.Hash != t.Hash) return false;
+            return t.Material == null || Squash(MaterialOf(p)) == Squash(t.Material);
+        }
+
+        static void Tally(Pickup p, int n, Taking t)
+        {
+            if (t.ByMaterial != null)
+            {
+                string key = MaterialOf(p);
+                int had;
+                t.ByMaterial.TryGetValue(key, out had);
+                t.ByMaterial[key] = had + n;
+            }
+            t.Count += n;
         }
 
         static bool HasContents(Pickup p)
@@ -171,7 +230,7 @@ namespace BotCore
             if (c == null || c.Interactor == null || t.Count >= t.Max) return;
             Pickup p = c.Interactor.InteractingWith as Pickup;
             if (p == null) return;
-            if (!Matches(p, t.Hash))
+            if (!Matches(p, t))
             {
                 if (p.SubDocks != null) WalkDocks(p.SubDocks.Docks, t);
                 return;
@@ -182,7 +241,7 @@ namespace BotCore
                 return;
             }
             if (!t.Dry) p.Entity.SceneDestroy();
-            t.Count++;
+            Tally(p, 1, t);
         }
 
         static void WalkDocks(IEnumerable<PickupDock> docks, Taking t)
@@ -193,7 +252,7 @@ namespace BotCore
                 if (t.Count >= t.Max) return;
                 if (dock == null || !dock.HasDockedPickup || dock.DockedPickup == null) continue;
                 Pickup p = dock.DockedPickup;
-                if (!Matches(p, t.Hash))
+                if (!Matches(p, t))
                 {
                     if (p.SubDocks != null) WalkDocks(p.SubDocks.Docks, t);
                     continue;
@@ -206,7 +265,7 @@ namespace BotCore
                 }
                 int n = Math.Min(stored, t.Max - t.Count);
                 if (!t.Dry) dock.DestroyAmount(n);
-                t.Count += n;
+                Tally(p, n, t);
             }
         }
 

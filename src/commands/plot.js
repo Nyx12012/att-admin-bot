@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { addPlayer, addName, addChoice, addBool } = require('../core/opts');
 const { UserError, isSafeName, chunkName, overworldChunk, own, vecText } = require('../game/text');
 const { AREAS } = require('../game/server');
+const targets = require('../core/targets');
 
 function plot(s) {
   return addName(s, 'plot', 'Plot name', { auto: true });
@@ -66,8 +67,9 @@ module.exports = {
         const p = own(ctx.bot.plots.doc(ctx.server), String(ctx.opt('plot')).toLowerCase());
         return p ? p.trusted.filter((t) => t.toLowerCase().includes(q)) : [];
       }
-      if (ctx.sub === 'staff') return ctx.bot.plots.settings(ctx.server).staff.concat(ctx.server.players().map((p) => p.username)).filter((n) => n.toLowerCase().includes(q));
-      return ctx.server.players().map((p) => p.username).filter((n) => n.toLowerCase().includes(q));
+      const online = targets.choices(ctx.bot, ctx.server, focused.value);
+      if (ctx.sub === 'staff') return ctx.bot.plots.settings(ctx.server).staff.filter((n) => n.toLowerCase().includes(q)).concat(online);
+      return online;
     }
     return [];
   },
@@ -108,7 +110,7 @@ module.exports = {
       return ctx.ok('Admin pass', ctx.opt('on') ? 'Members with Administrator who used /link can enter every plot.' : 'Off. Only owners, trusted players and /plot staff can enter.');
     }
     if (ctx.sub === 'staff') {
-      const name = String(ctx.opt('name')).trim();
+      const name = ctx.name('name');
       if (!isSafeName(name)) throw new UserError('That is not a valid in-game name.');
       const st = plots.settings(s);
       st.staff = st.staff.filter((x) => x.toLowerCase() !== name.toLowerCase());
@@ -157,7 +159,7 @@ module.exports = {
       return ctx.ok('Plot created', `${info(p)}\n\nGrow it with \`/plot grow\` while someone stands in the next chunk.`);
     }
     if (ctx.sub === 'claim') {
-      const owner = String(ctx.opt('owner')).trim();
+      const owner = ctx.name('owner');
       if (!isSafeName(owner)) throw new UserError('That is not a valid in-game name.');
       const online = s.roster.get(owner.toLowerCase());
       const p = plots.claim(s, ctx.opt('name'), online ? online.username : owner, ctx.opt('chunks'));
@@ -195,7 +197,7 @@ module.exports = {
     }
     if (ctx.sub === 'trust' || ctx.sub === 'untrust') {
       if (!plots.canManage(ctx, p)) throw new UserError(`Only ${p.owner} (linked with /link) or an admin can change who is trusted on ${p.name}.`);
-      const name = String(ctx.opt('name')).trim();
+      const name = ctx.name('name');
       if (!isSafeName(name)) throw new UserError('That is not a valid in-game name.');
       p.trusted = p.trusted.filter((x) => x.toLowerCase() !== name.toLowerCase());
       if (ctx.sub === 'trust') p.trusted.push(name);

@@ -56,14 +56,17 @@ chunk and plot name on screen when you cross a border.
 **Shop and selling (needs BotCore).** List items with prices and categories, and players buy with
 their ATM coins from Discord. Items arrive in the mailbox. You can also sell Discord roles. Set what
 the bot pays for items, and players sell what they carry with `/sell item`. They see the offer and
-confirm first. Daily limits are optional, and a sell price at or above the shop price is refused so
-nobody can print coins. Nothing is bought, sold or withdrawn within 15 m of an ATM. Change that with `/shop atmdistance`.
+confirm first. Prices can depend on the wood or metal: `/sell add` with a `material` sets one price
+for Redwood and another for Oak, and `/sell item` pays each piece by what it really is. `/shop add`
+sells one wood or metal the same way. Daily limits are optional, and a sell price at or above the
+shop price is refused so nobody can print coins. Nothing is bought, sold or withdrawn within 15 m of an ATM. Change that with `/shop atmdistance`.
 
 **Alchemy.** Build your own recipes for your server. Put items in the front pockets, in order or not,
 and either bring your hands together or just wait. A recipe can run up to 5 console commands, give
 items or a buff, use up the items, have a cooldown, work only for named players, and hit everyone in
 the chunk. In commands, `{player}` is who it runs on and `{caster}` is who fired it. `/alchemy hold`
 gives a buff for as long as someone carries an item, or one exact item from a save string.
+`/alchemy edit` changes a saved one without making it again.
 
 **Fun.** Smite, fling, featherweight, no hunger, clarity, forge all, hearts, spriggull drops,
 meetings and surprises. Kill and death leaderboards and time online with `/stats` and `/playtime`.
@@ -77,8 +80,10 @@ resetting them, removing one item from the ground, and posts as the bot.
 
 - The Discord server owner and anyone in `BOT_OWNER_IDS` can use everything.
 - Members with the Administrator permission can use the admin commands.
-- Owner only by default: `/cmd`, `/cc`, `/string`, `/spawn`, `/kit give`, `/mail`, `/atm add|set`,
-  `/alchemy create|hold|delete|toggle|test`, `/report action|clear`, `/chunks wipe`,
+- `/boot`, `/shutdown` and `/restart` are for admins. Grant `/boot` to a role if your members should
+  be able to start the server.
+- Owner only by default: `/bot`, `/cmd`, `/cc`, `/string`, `/spawn`, `/kit give`, `/mail`, `/atm add|set`,
+  `/alchemy create|hold|edit|delete|toggle|test`, `/report action|clear`, `/chunks wipe`,
   `/settings set`, `/world`, `/permissions`. These can run anything on your server, so grant them
   with care.
 - `/permissions grant` lets any role or member use a command, or one subcommand like
@@ -95,9 +100,12 @@ Every admin action is written to `data/audit/` and, if you pick a channel, poste
 The game's coin and mailbox commands look players up on Alta's old servers, which are gone.
 BotCore is a small server mod that answers those lookups, which turns on `/atm`, `/mail`, `/shop`,
 `/sell`, `/balance` and `/withdraw`. It also removes sold items safely from a player's hands, belt
-and bag, and tells the bot where the ground is for `/chunk show`.
-On Windows it can also start the bot together with the game server, so nobody has to run
-`start.bat`. See [botcore/README.md](botcore/README.md). Without it everything else works.
+and bag, reads what wood or metal they are made of, tells the bot where the ground is for
+`/chunk show`, and records how the server was started so `/boot` can start it again.
+On Windows it also starts the bot together with the game server: drop the bot into `UserData`
+under any folder name, fill in `.env`, and the first server start installs what it needs (Node.js
+too, when the PC has none) and starts it. See [botcore/README.md](botcore/README.md). Without
+BotCore everything else works.
 
 ## Commands
 
@@ -106,6 +114,7 @@ On Windows it can also start the bot together with the game server, so nobody ha
 | `/setup` | Channels for logs, the online list, cleanup reports, tablet reports and the audit log. `/setup auto` makes them all, `/setup logchannel` gives one kind of log its own channel |
 | `/permissions` | Let roles or members use commands |
 | `/status`, `/players` | Server health and who is online |
+| `/l` | Numbers the players online (admins). Every player option takes that number, the name, or an @mention of a member who used `/link` |
 | `/cleanup` | Ground cleanup rules, preview, run, warning, threshold, decay |
 | `/kick`, `/ban` | Kick, timed or permanent bans |
 | `/message`, `/announce` | On screen messages, repeating announcements |
@@ -116,6 +125,8 @@ On Windows it can also start the bot together with the game server, so nobody ha
 | `/shop`, `/sell`, `/balance`, `/withdraw` | The shop, selling to the bot, coins |
 | `/alchemy` | Your own item recipes and carried item buffs |
 | `/time`, `/settings`, `/save`, `/festival`, `/world` | The world and the server |
+| `/boot`, `/shutdown`, `/restart` | Start, close or restart the game server from Discord |
+| `/bot` | Stop or restart the Discord bot itself |
 | `/plot`, `/chunk` | Land claims, the plot tree, chunk markers |
 | `/despawn`, `/despawnmenu`, `/wipe`, `/chunks` | Remove one item from the ground, look into or reset a chunk |
 | `/report` | What happens on a tablet report |

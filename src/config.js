@@ -62,6 +62,7 @@ function readServers() {
     port: env('ATT_CONSOLE_PORT', '1760'),
     token: env('ATT_CONSOLE_TOKEN'),
     tokenFile: env('ATT_CONSOLE_TOKEN_FILE', defaultTokenFile()),
+    start: env('SERVER_START'),
   }, 0)];
 }
 
@@ -76,6 +77,7 @@ function normalizeServer(s, i) {
     port: Number(s.port || 1760),
     token: s.token ? String(s.token) : '',
     tokenFile: s.tokenFile ? String(s.tokenFile) : defaultTokenFile(),
+    start: s.start ? String(s.start) : '',
   };
 }
 

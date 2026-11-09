@@ -4,7 +4,7 @@ const autostart = require('./autostart');
 
 const root = path.resolve(__dirname, '..');
 const serverPid = autostart.serverPid();
-if (serverPid) autostart.logToFile(path.join(root, 'logs', 'bot.log'));
+if (serverPid || process.argv.includes('--log-file')) autostart.logToFile(path.join(root, 'logs', 'bot.log'));
 
 function fail(message) {
   console.error(`\n${message}\n`);
@@ -80,14 +80,8 @@ if (process.argv.includes('--register-only')) {
     await bot.stop().catch(() => {});
     process.exit(0);
   };
-  if (serverPid) {
-    console.log(`Started by BotCore for the game server (process ${serverPid}). The bot stays up through restarts and stops after 10 minutes with no server.`);
-    autostart.watch({
-      pid: serverPid,
-      online: () => [...bot.servers.values()].some((s) => s.online),
-      onIdle: () => shutdown('No game server for 10 minutes, so the bot stops too. The next server start brings it back.'),
-    });
-  }
+  bot.life = autostart.lifecycle({ stop: () => bot.stop(), release: held.release, root });
+  if (serverPid) console.log(`Started by BotCore for the game server (process ${serverPid}). The bot stays up until someone stops it.`);
   bot.start().catch((e) => fail(`Discord login failed: ${String(e.message).replace(/\.+$/, '')}. Check DISCORD_TOKEN in ${cfg.envFile || '.env'}.`));
   process.on('SIGINT', () => shutdown());
   process.on('SIGTERM', () => shutdown());

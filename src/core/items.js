@@ -3,7 +3,7 @@ const { squash } = require('../game/text');
 
 const raw = require(path.join(__dirname, '..', '..', 'data', 'items.json'));
 
-const ITEMS = raw.map((e) => ({ hash: e.h, name: e.n, pickup: Boolean(e.p), spawn: Boolean(e.s), key: squash(e.n) }));
+const ITEMS = raw.map((e) => ({ hash: e.h, name: e.n, pickup: Boolean(e.p), spawn: Boolean(e.s), material: Boolean(e.m), key: squash(e.n) }));
 const BY_HASH = new Map(ITEMS.map((i) => [i.hash, i]));
 const BY_KEY = new Map();
 for (const i of ITEMS) if (!BY_KEY.has(i.key)) BY_KEY.set(i.key, i);

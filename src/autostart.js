@@ -3,10 +3,13 @@ const os = require('os');
 const path = require('path');
 const util = require('util');
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 
 const FRESH_MS = 90000;
 const BEAT_MS = 30000;
-const IDLE_MS = 600000;
+const GRACE_MS = 1500;
+const STOP_LIMIT_MS = 15000;
+const RESTART_CODE = 75;
 
 function serverPid(argv = process.argv, env = process.env) {
   const i = argv.indexOf('--server-pid');
@@ -135,21 +138,56 @@ function lock(dataDir, options = {}) {
   return { ok: true, file, files, release };
 }
 
-function watch({ pid, online, onIdle, limit = IDLE_MS, every = 5000 }) {
-  let server = pid;
-  let last = Date.now();
-  const t = setInterval(() => {
-    if (server && !alive(server)) server = null;
-    if (server || online()) {
-      last = Date.now();
-      return;
-    }
-    if (Date.now() - last < limit) return;
-    clearInterval(t);
-    onIdle();
-  }, every);
-  t.unref?.();
-  return t;
+function supervisor(env = process.env) {
+  if (env.pm_id !== undefined) return 'pm2';
+  if (env.ATT_BOT_LOOP === '1') return 'script';
+  return null;
 }
 
-module.exports = { serverPid, alive, logToFile, sharedDir, tokenFile, beat, lock, watch };
+function replace({ execPath, argv, cwd, spawner }) {
+  const args = argv.slice(1);
+  if (!args.includes('--server-pid') && !args.includes('--log-file')) args.push('--log-file');
+  return new Promise((resolve) => {
+    const child = spawner(execPath, args, { cwd, detached: true, stdio: 'ignore', windowsHide: true });
+    child.once('error', (e) => {
+      console.error(`Could not start the new copy of the bot: ${e.message}`);
+      resolve();
+    });
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+  });
+}
+
+function lifecycle({ stop, release, root, env = process.env, argv = process.argv, execPath = process.execPath, spawner = spawn, exit = process.exit, grace = GRACE_MS, limit = STOP_LIMIT_MS }) {
+  const kind = supervisor(env);
+  let busy = false;
+  const finish = async (why, then) => {
+    if (busy) return;
+    busy = true;
+    await new Promise((r) => setTimeout(r, grace));
+    console.log(why);
+    let timer;
+    await Promise.race([
+      Promise.resolve().then(stop).catch((e) => console.error(`Stopping the bot: ${e.message}`)),
+      new Promise((r) => { timer = setTimeout(r, limit); }),
+    ]);
+    clearTimeout(timer);
+    await then();
+  };
+  return {
+    kind,
+    name: env.name || 'att-bot',
+    stop: () => finish('Stopped with /bot stop.', () => exit(0)),
+    restart: () => finish('Restarting with /bot restart.', async () => {
+      if (kind === 'pm2') return exit(0);
+      if (kind === 'script') return exit(RESTART_CODE);
+      release();
+      await replace({ execPath, argv, cwd: root, spawner });
+      return exit(0);
+    }),
+  };
+}
+
+module.exports = { serverPid, alive, logToFile, sharedDir, tokenFile, beat, lock, supervisor, lifecycle, RESTART_CODE };

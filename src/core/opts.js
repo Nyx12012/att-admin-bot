@@ -10,6 +10,10 @@ function addItem(b, { required = true, name = 'item', description = 'Item name o
   return b.addStringOption((o) => o.setName(name).setDescription(description).setRequired(required).setAutocomplete(true));
 }
 
+function addMaterial(b, { required = false } = {}) {
+  return b.addStringOption((o) => o.setName('material').setDescription('Wood, metal or other material, like Redwood or Iron').setRequired(required).setAutocomplete(true));
+}
+
 function addName(b, name, description, { required = true, auto = false, max = 32 } = {}) {
   return b.addStringOption((o) => o.setName(name).setDescription(description).setRequired(required).setAutocomplete(auto).setMaxLength(max));
 }
@@ -45,4 +49,4 @@ function addBool(b, name, description, { required = true } = {}) {
   return b.addBooleanOption((o) => o.setName(name).setDescription(description).setRequired(required));
 }
 
-module.exports = { addPlayer, addItem, addName, addText, addInt, addNumber, addChoice, addBool };
+module.exports = { addPlayer, addItem, addMaterial, addName, addText, addInt, addNumber, addChoice, addBool };

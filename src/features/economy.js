@@ -1,3 +1,4 @@
+const materials = require('../core/materials');
 const { UserError, own, RESERVED, quoteName } = require('../game/text');
 
 const MAX_BUY = 25;
@@ -128,11 +129,12 @@ class Economy {
     if (Array.isArray(list) && list.some((e) => ATM.test(String(e && e.Name)))) throw new UserError(`You cannot do this within ${meters} m of an ATM. Step away first.`);
   }
 
-  assertNoLoop(server, hash, { buy = null, sell = null }) {
-    const shopItem = Object.values(this.shop(server).items).find((x) => x.hash === Number(hash));
-    const sellItem = own(this.buyback(server).items, String(hash));
-    const buyPrice = buy ?? (shopItem && shopItem.price);
-    const sellPrice = sell ?? (sellItem && sellItem.price);
+  assertNoLoop(server, hash, { buy = null, sell = null, material = null }) {
+    const fits = (x) => x.hash === Number(hash) && (!material || !x.material || x.material === material);
+    const shopPrices = Object.values(this.shop(server).items).filter(fits).map((x) => x.price);
+    const sellPrices = Object.values(this.buyback(server).items).filter(fits).map((x) => x.price);
+    const buyPrice = buy ?? (shopPrices.length ? Math.min(...shopPrices) : null);
+    const sellPrice = sell ?? (sellPrices.length ? Math.max(...sellPrices) : null);
     if (buyPrice != null && sellPrice != null && sellPrice >= buyPrice) {
       throw new UserError(`The bot would pay ${sellPrice} for an item it sells for ${buyPrice}, so anyone could print coins. Keep the sell price under the shop price.`);
     }
@@ -179,7 +181,7 @@ class Economy {
         for (let i = 0; i < amount; i += 1) {
           let r;
           try {
-            r = await s.run(`trade post "${user.username}" ${item.hash} 1`, { allowError: true });
+            r = await s.run(`trade post "${user.username}" ${item.hash}${item.material ? ` ${item.material}` : ''} 1${item.forged ? ' forged' : ''}`, { allowError: true });
           } catch (e) {
             unknown = true;
             problem = e.message;
@@ -225,51 +227,138 @@ class Economy {
     return { n: Number(m[2]), refused: Number(m[3]) };
   }
 
+  sellKey(entry) {
+    return entry.material ? `${entry.hash}:${entry.material}` : String(entry.hash);
+  }
+
   sellInfo(s, entry, username, wanted) {
     const doc = this.buyback(s);
-    const left = entry.daily ? entry.daily - this.counted(doc, this.today(), username, String(entry.hash)) : MAX_SELL;
+    const left = entry.daily ? entry.daily - this.counted(doc, this.today(), username, this.sellKey(entry)) : MAX_SELL;
     return Math.min(wanted || MAX_SELL, Math.max(0, left), MAX_SELL);
   }
 
-  async sell(ctx, entry, wanted) {
+  saleEntries(doc, text) {
+    const key = String(text).trim().toLowerCase();
+    const list = Object.values(doc.items);
+    const every = (hash) => list.filter((x) => x.hash === hash);
+    const group = key.match(/^all:(\d+)$/);
+    if (group) return every(Number(group[1]));
+    const hit = own(doc.items, key) || list.find((x) => x.name.toLowerCase() === key);
+    if (hit) return hit.material ? [hit] : every(hit.hash);
+    const base = list.find((x) => String(x.base || '').toLowerCase() === key);
+    return base ? every(base.hash) : [];
+  }
+
+  parseCarried(text) {
+    const m = String(text).match(/^carried (\d+) (.+)$/);
+    if (!m) throw new UserError(`The server answered in a way the bot does not understand: ${String(text).slice(0, 80)}. Is BotCore 1.3.0 or newer installed?`);
+    const kinds = m[2] === '-' ? [] : m[2].split('|').map((part) => {
+      const at = part.lastIndexOf('=');
+      return { raw: part.slice(0, at), n: Number(part.slice(at + 1)) };
+    });
+    return { refused: Number(m[1]), kinds };
+  }
+
+  needMaterials(s) {
+    const m = String(s.botcore || '').match(/^BotCore (\d+)\.(\d+)/);
+    if (!m || Number(m[1]) < 1 || (Number(m[1]) === 1 && Number(m[2]) < 3)) throw new UserError('Prices by wood or metal need BotCore 1.3.0 or newer on the game server.');
+  }
+
+  async planSale(s, user, entries, wanted) {
+    const plain = entries.find((e) => !e.material) || null;
+    const priced = new Map(entries.filter((e) => e.material).map((e) => [e.material, e]));
+    const hash = entries[0].hash;
+    if (priced.size === 0) {
+      const limit = this.sellInfo(s, plain, user.username, wanted);
+      if (limit <= 0) throw new UserError(`You hit today's limit of ${plain.daily} for ${plain.name}.`);
+      const look = this.parseTake(await s.value(`botcore take "${user.username}" ${hash} ${limit} count all`));
+      return { rows: look.n ? [{ entry: plain, n: look.n, filter: null, label: plain.name }] : [], refused: look.refused, unpriced: [], capped: false };
+    }
+    this.needMaterials(s);
+    const carried = this.parseCarried(await s.value(`botcore carried "${user.username}" ${hash} all`));
+    const unpriced = [];
+    const kinds = [];
+    for (const k of carried.kinds) {
+      const entry = priced.get(materials.squash(k.raw)) || plain;
+      if (entry) kinds.push({ ...k, entry });
+      else unpriced.push(materials.label(k.raw));
+    }
+    kinds.sort((a, b) => b.entry.price - a.entry.price);
+    const rows = [];
+    const used = new Map();
+    let room = Math.min(wanted || MAX_SELL, MAX_SELL);
+    for (const k of kinds) {
+      const key = this.sellKey(k.entry);
+      const n = Math.min(k.n, this.sellInfo(s, k.entry, user.username, room) - (used.get(key) || 0));
+      if (n <= 0) continue;
+      used.set(key, (used.get(key) || 0) + n);
+      room -= n;
+      const label = k.entry.material || k.raw === 'none' ? k.entry.name : `${k.entry.name} (${materials.label(k.raw)})`;
+      rows.push({ entry: k.entry, n, filter: materials.squash(k.raw), label });
+    }
+    return { rows, refused: carried.refused, unpriced, capped: kinds.length > 0 && rows.length === 0 };
+  }
+
+  async sell(ctx, entries, wanted) {
+    const first = entries[0];
+    const title = first.base || first.name;
     const s = ctx.needOnline();
     const doc = this.buyback(s);
     if (doc.paused) throw new UserError('The bot is not buying anything right now.');
     const name = ctx.self();
     const user = await s.lookup(name);
     if (user.state !== 'online') throw new UserError('You have to be in game, carrying what you want to sell.');
-    const limit = this.sellInfo(s, entry, user.username, wanted);
-    if (limit <= 0) throw new UserError(`You hit today's limit of ${entry.daily} for ${entry.name}.`);
     return this.lock(s, user.username, 'a sale', async () => {
       await this.checkPlace(s, user);
-      const look = this.parseTake(await s.value(`botcore take "${user.username}" ${entry.hash} ${limit} count all`));
-      if (look.n === 0) {
-        throw new UserError(look.refused
-          ? `You carry ${entry.name} with things stored inside. Empty it first.`
-          : `You are not carrying any ${entry.name}. Hold it, or keep it on your belt or in your bag.`);
+      const plan = await this.planSale(s, user, entries, wanted);
+      const skipped = plan.unpriced.length ? ` The bot does not buy ${plan.unpriced.join(', ')}.` : '';
+      if (plan.rows.length === 0) {
+        if (plan.capped) throw new UserError(`You hit today's limit for ${title}.`);
+        throw new UserError(plan.refused
+          ? `You carry ${title} with things stored inside. Empty it first.`
+          : `You are not carrying any ${title} the bot buys. Hold it, or keep it on your belt or in your bag.${skipped}`);
       }
-      const offer = look.n * entry.price;
-      if (!(await ctx.confirm('Sell these?', `**${look.n} x ${entry.name}** for **${offer} coins**, paid to your ATM. The items are gone once you confirm.`, { label: 'Sell', danger: false }))) return null;
-      const row = this.open(s, { kind: 'sell', player: user.username, item: entry.name, amount: look.n, coins: offer, state: 'taking items' });
-      const done = this.parseTake(await s.value(`botcore take "${user.username}" ${entry.hash} ${look.n} take all`));
-      if (done.n === 0) {
+      const offer = plan.rows.reduce((sum, r) => sum + r.n * r.entry.price, 0);
+      const count = plan.rows.reduce((sum, r) => sum + r.n, 0);
+      const what = (rows) => rows.map((r) => `${r.n} x ${r.label}`).join(', ');
+      const text = plan.rows.length === 1
+        ? `**${what(plan.rows)}** for **${offer} coins**`
+        : `${plan.rows.map((r) => `${r.n} x ${r.label} at ${r.entry.price}: ${r.n * r.entry.price}`).join('\n')}\n\nTotal **${offer} coins**`;
+      if (!(await ctx.confirm('Sell these?', `${text}, paid to your ATM. The items are gone once you confirm.${skipped}`, { label: 'Sell', danger: false }))) return null;
+      const row = this.open(s, { kind: 'sell', player: user.username, item: plan.rows.map((r) => r.label).join(', '), amount: count, coins: offer, state: 'taking items' });
+      const sold = [];
+      let pay = 0;
+      for (const r of plan.rows) {
+        let done;
+        try {
+          done = this.parseTake(await s.value(`botcore take "${user.username}" ${r.entry.hash} ${r.n} take all${r.filter ? ` ${r.filter}` : ''}`));
+        } catch (e) {
+          this.update(s, row, { state: `stopped while taking items, ${pay} coins owed for ${what(sold) || 'nothing'}`, coins: pay });
+          throw new UserError(`The sale stopped halfway. An admin can see this in /shop pending, row ${row.id}.`);
+        }
+        if (done.n > 0) {
+          sold.push({ ...r, n: done.n });
+          pay += done.n * r.entry.price;
+        }
+      }
+      if (sold.length === 0) {
         this.close(s, row);
-        throw new UserError(`The ${entry.name} is gone from your inventory, so nothing was sold.`);
+        throw new UserError(`The ${title} is gone from your inventory, so nothing was sold.`);
       }
-      const pay = done.n * entry.price;
-      this.update(s, row, { state: 'items taken, coins owed', amount: done.n, coins: pay });
+      const total = sold.reduce((sum, r) => sum + r.n, 0);
+      this.update(s, row, { state: 'items taken, coins owed', amount: total, coins: pay });
       const before = await this.coins(s, user);
       const after = await this.change(s, user, before, pay);
       if (after == null) {
-        this.log(s, `**${user.username}** sold ${done.n} x ${entry.name} and is owed ${pay} coins. See /shop pending, row ${row.id}.`);
+        this.log(s, `**${user.username}** sold ${what(sold)} and is owed ${pay} coins. See /shop pending, row ${row.id}.`);
         throw new UserError(`Your items were taken but the ATM did not confirm the ${pay} coins. An admin can see this in /shop pending, row ${row.id}.`);
       }
-      if (entry.daily) this.addCount(doc, this.today(), user.username, String(entry.hash), done.n);
+      for (const r of sold) if (r.entry.daily) this.addCount(doc, this.today(), user.username, this.sellKey(r.entry), r.n);
       this.bot.store.write(`server-${s.id}-sell`);
       this.close(s, row);
-      ctx.note(`${done.n} x ${entry.name} for ${pay} coins`);
-      this.log(s, `**${user.username}** sold ${done.n} x ${entry.name} for ${pay} coins, now has ${after}.`);
-      return { sold: done.n, paid: pay, balance: after };
+      ctx.note(`${what(sold)} for ${pay} coins`);
+      this.log(s, `**${user.username}** sold ${what(sold)} for ${pay} coins, now has ${after}.`);
+      return { sold: total, paid: pay, balance: after, what: what(sold) };
     });
   }
 

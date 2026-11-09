@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } = require('discord.js');
-const { addItem, addInt, addName } = require('../core/opts');
+const { addItem, addInt, addName, addMaterial, addBool } = require('../core/opts');
+const materials = require('../core/materials');
 const { embed } = require('../core/ui');
 const items = require('../core/items');
 const { UserError, safeKey, own } = require('../game/text');
@@ -64,7 +65,7 @@ module.exports = {
     .addSubcommand((s) => s.setName('list').setDescription('Everything for sale'))
     .addSubcommand((s) => s.setName('menu').setDescription('Pick something to buy from a menu'))
     .addSubcommand((s) => addInt(product(s.setName('buy').setDescription('Buy an item, it arrives in your mailbox')), 'amount', 'How many (default 1)', { required: false, min: 1, max: 25 }))
-    .addSubcommand((s) => addInt(addInt(addName(addItem(s.setName('add').setDescription('Add or change an item for sale')), 'category', 'Category, like Weapons', { max: 40 }), 'price', 'Price in coins', { min: 1, max: 10000000 }), 'daily', 'Most one player can buy a day', { required: false, min: 1, max: 10000 }))
+    .addSubcommand((s) => addBool(addMaterial(addInt(addInt(addName(addItem(s.setName('add').setDescription('Add or change an item for sale')), 'category', 'Category, like Weapons', { max: 40 }), 'price', 'Price in coins', { min: 1, max: 10000000 }), 'daily', 'Most one player can buy a day', { required: false, min: 1, max: 10000 })), 'forged', 'Sell it finished, ready to use', { required: false }))
     .addSubcommand((s) => addInt(addName(addName(s.setName('addrole').setDescription('Sell a Discord role'), 'category', 'Category, like Perks', { max: 40 }), 'name', 'Name shown in the shop', { max: 60 }), 'price', 'Price in coins', { min: 1, max: 10000000 })
       .addRoleOption((o) => o.setName('role').setDescription('The role to grant').setRequired(true)))
     .addSubcommand((s) => product(s.setName('remove').setDescription('Take an item off sale')))
@@ -95,11 +96,13 @@ module.exports = {
       const item = items.resolve(ctx.opt('item'));
       if (!item || item.unknown) throw new UserError(`No item matches "${ctx.opt('item')}". Pick one from the list.`);
       const price = ctx.opt('price');
-      eco.assertNoLoop(s, item.hash, { buy: price });
-      const key = safeKey(item.name.replace(/\s+/g, '-'));
-      doc.items[key] = { key, hash: item.hash, name: item.name, category: String(ctx.opt('category')).trim(), price, daily: ctx.opt('daily') || null };
+      const material = materials.fromOption(ctx.opt('material'));
+      eco.assertNoLoop(s, item.hash, { buy: price, material: material && material.value });
+      const key = material ? safeKey(`${item.hash}-${material.value}`) : safeKey(item.name.replace(/\s+/g, '-'));
+      const name = materials.named(item.name, material);
+      doc.items[key] = { key, hash: item.hash, name, category: String(ctx.opt('category')).trim(), price, daily: ctx.opt('daily') || null, material: material ? material.value : null, forged: Boolean(ctx.opt('forged')) };
       eco.saveShop(s);
-      ctx.note(`${item.name} ${price}`);
+      ctx.note(`${name} ${price}`);
       return ctx.ok('Item added', priced(doc.items[key]));
     }
     if (ctx.sub === 'addrole') {

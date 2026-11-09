@@ -1,15 +1,23 @@
 # BotCore
 
-A small, optional server mod for the bot. It does two things:
+A small, optional server mod for the bot. It does these things:
 
 - **Coins and mail.** The game's coin and mailbox commands (`trade atm`, `trade post`) look
   players up on Alta's old servers, which are gone, so on a normal server they fail with "Failed
   sending request". BotCore answers those lookups from the players online right now and from
   `users.json` in `%APPDATA%\TheModdingTavern`, the file TavernLib already keeps. That turns on
   `/atm`, `/mail`, `/shop`, `/sell`, `/balance` and `/withdraw`.
-- **Starts the bot with the server.** If the bot is in the server's `UserData\ATT-Admin-Bot`
-  folder, BotCore starts it when the server starts, and the bot stops when the server stops. See
-  "Start the bot with the game server" in SETUP.md.
+- **Starts the bot with the server.** If a copy of the bot is in the server's `UserData` folder,
+  under any folder name, BotCore starts it when the server starts. The bot then stays up until
+  someone stops it. See "Start the bot with the game server" in SETUP.md.
+- **Sets the bot up the first time.** In the background, while the server loads, BotCore runs
+  `npm install` in the bot's folder.
+- **Downloads and runs Node.js when none is found.** If the PC has no Node.js, BotCore downloads
+  the official Windows x64 zip of Node.js 24 from nodejs.org into the bot's `node` folder, checks
+  it against a SHA-256 built into BotCore, and runs the bot with it.
+
+An empty file `UserData\BotCore\autostart-off.txt` turns all of the bot starting, installing and
+downloading off.
 
 Nothing else in the game changes.
 
@@ -17,17 +25,19 @@ Nothing else in the game changes.
 
 1. Stop the game server.
 2. Put `BotCore.dll` in the server's `Mods` folder.
-3. Start the server. Its log shows `BotCore 1.2.0: 8 commands ready`, and `Started the Discord
-   bot` when the bot is in `UserData\ATT-Admin-Bot`.
-
-To turn the autostart off, create an empty file `UserData\BotCore\autostart-off.txt`.
+3. Start the server. Its log shows `BotCore 1.4.0: 10 commands ready`, and `Started the Discord
+   bot` when a copy of the bot is in `UserData`.
 
 ## Console commands it adds
 
 - `botcore version`
 - `botcore user <name or id>`: `online <id> <name>`, `offline <id> <name>` or `unknown`
-- `botcore take <player> <item> <max> [count|take] [all|hands|belt]`: count or remove carried items,
-  answers `count <n> <refused>` or `taken <n> <refused>`
+- `botcore take <player> <item> <max> [count|take] [all|hands|belt] [any|none|material]`: count or
+  remove carried items, answers `count <n> <refused>` or `taken <n> <refused>`
+- `botcore carried <player> <item> [all|hands|belt]`: carried items split by material, answers
+  `carried <refused> Oak=2|Redwood=1`, or `-` for none
+- `botcore startfile`: the file where this server recorded how it was started, for `/boot`. It holds
+  the launch tokens, so keep it private like `startServer.bat`
 - `botcore ground <x> <z> <from height>`: the height of the ground under a point, answers
   `ground <y>` or `none`
 - `botcore heal`, `botcore stats`, `botcore sweep count|run`: older helpers. The bot does not use

@@ -30,7 +30,7 @@ module.exports = {
     }
     if (ctx.sub === 'start') {
       ctx.needOnline();
-      const name = await links.begin(s, ctx.user.id, ctx.opt('player'));
+      const name = await links.begin(s, ctx.user.id, ctx.player());
       return ctx.info('Check your screen in game', `A 4 digit code was shown to **${name}**. Now use \`/link confirm\` with it within 5 minutes.`);
     }
     if (ctx.sub === 'confirm') {
@@ -46,7 +46,7 @@ module.exports = {
     }
     if (ctx.sub === 'who') {
       const member = ctx.member('member');
-      const player = ctx.opt('player');
+      const player = ctx.name('player', { required: false });
       if (member) {
         const l = links.of(s, member.id);
         return ctx.info('Link', l ? `<@${member.id}> is **${l.username}**.` : `<@${member.id}> is not linked.`);
@@ -57,8 +57,9 @@ module.exports = {
       }
       throw new UserError('Pick a member or a player.');
     }
-    const owner = links.removeName(s, ctx.opt('player'));
-    ctx.note(ctx.opt('player'));
-    return owner ? ctx.ok('Link removed', `${ctx.opt('player')} is no longer linked to <@${owner}>.`) : ctx.warn('Not linked', `${ctx.opt('player')} had no link.`);
+    const player = ctx.name('player');
+    const owner = links.removeName(s, player);
+    ctx.note(player);
+    return owner ? ctx.ok('Link removed', `${player} is no longer linked to <@${owner}>.`) : ctx.warn('Not linked', `${player} had no link.`);
   },
 };

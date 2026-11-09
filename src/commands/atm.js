@@ -19,7 +19,7 @@ module.exports = {
 
   async run(ctx) {
     const s = ctx.needOnline();
-    const user = await s.lookup(String(ctx.opt('player')).trim());
+    const user = await s.lookup(ctx.name('player'));
     const q = `"${user.username}"`;
     if (ctx.sub === 'balance') {
       const v = await s.value(`trade atm get ${q}`);
