@@ -190,7 +190,7 @@ computer, connect the two over a VPN (Tailscale, WireGuard) or an SSH tunnel, th
 
 ## Optional: BotCore
 
-For `/atm`, `/mail`, `/shop`, `/sell`, `/balance` and `/withdraw`, put `BotCore.dll` (1.4.0 or newer) in
+For `/atm`, `/mail`, `/shop`, `/sell`, `/balance` and `/withdraw`, put `BotCore.dll` (1.4.1 or newer) in
 the game server's `Mods` folder and restart the server. See [botcore/README.md](botcore/README.md).
 
 ## Troubleshooting

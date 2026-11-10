@@ -24,7 +24,7 @@ module.exports = {
     .setName('sell')
     .setDescription('Sell items you carry to the bot for ATM coins (needs BotCore)')
     .addSubcommand((s) => s.setName('list').setDescription('What the bot buys and for how much'))
-    .addSubcommand((s) => addInt(goods(s.setName('item').setDescription('Sell what you hold or carry, you confirm first')), 'amount', 'Most to sell (default all you carry)', { required: false, min: 1, max: 100 }))
+    .addSubcommand((s) => addInt(goods(s.setName('item').setDescription('Sell what you hold or carry, you confirm first')), 'amount', 'Most to sell (default all you carry)', { required: false, min: 1 }))
     .addSubcommand((s) => addMaterial(addInt(addInt(addItem(s.setName('add').setDescription('Set what the bot pays for an item, or for one wood or metal of it')), 'price', 'Coins paid per item', { min: 1, max: 10000000 }), 'daily', 'Most one player can sell a day', { required: false, min: 1, max: 10000 })))
     .addSubcommand((s) => goods(s.setName('remove').setDescription('Stop buying an item'), 'Item to stop buying'))
     .addSubcommand((s) => addBool(s.setName('pause').setDescription('Pause or resume all buying'), 'on', 'True pauses, false resumes')),

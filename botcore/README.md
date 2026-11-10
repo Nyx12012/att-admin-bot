@@ -25,7 +25,7 @@ Nothing else in the game changes.
 
 1. Stop the game server.
 2. Put `BotCore.dll` in the server's `Mods` folder.
-3. Start the server. Its log shows `BotCore 1.4.0: 10 commands ready`, and `Started the Discord
+3. Start the server. Its log shows `BotCore 1.4.1: 10 commands ready`, and `Started the Discord
    bot` when a copy of the bot is in `UserData`.
 
 ## Console commands it adds

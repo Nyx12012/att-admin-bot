@@ -99,8 +99,8 @@ Every admin action is written to `data/audit/` and, if you pick a channel, poste
 
 The game's coin and mailbox commands look players up on Alta's old servers, which are gone.
 BotCore is a small server mod that answers those lookups, which turns on `/atm`, `/mail`, `/shop`,
-`/sell`, `/balance` and `/withdraw`. It also removes sold items safely from a player's hands, belt
-and bag, reads what wood or metal they are made of, tells the bot where the ground is for
+`/sell`, `/balance` and `/withdraw`. It also removes sold items safely from a player's hands, belt,
+bag and the pouches clipped to it, reads what wood or metal they are made of, tells the bot where the ground is for
 `/chunk show`, and records how the server was started so `/boot` can start it again.
 On Windows it also starts the bot together with the game server: drop the bot into `UserData`
 under any folder name, fill in `.env`, and the first server start installs what it needs (Node.js

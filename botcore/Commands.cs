@@ -180,6 +180,7 @@ namespace BotCore
             public int Refused;
             public string Material;
             public SortedDictionary<string, int> ByMaterial;
+            public HashSet<PickupDock> Seen = new HashSet<PickupDock>();
         }
 
         static string MaterialOf(Pickup p)
@@ -232,7 +233,7 @@ namespace BotCore
             if (p == null) return;
             if (!Matches(p, t))
             {
-                if (p.SubDocks != null) WalkDocks(p.SubDocks.Docks, t);
+                if (p.SubDocks != null) WalkDocks(p.SubDocks.TotalDocks, t);
                 return;
             }
             if (HasContents(p))
@@ -247,14 +248,14 @@ namespace BotCore
         static void WalkDocks(IEnumerable<PickupDock> docks, Taking t)
         {
             if (docks == null) return;
-            foreach (PickupDock dock in docks)
+            foreach (PickupDock dock in new List<PickupDock>(docks))
             {
                 if (t.Count >= t.Max) return;
-                if (dock == null || !dock.HasDockedPickup || dock.DockedPickup == null) continue;
+                if (dock == null || !t.Seen.Add(dock) || !dock.HasDockedPickup || dock.DockedPickup == null) continue;
                 Pickup p = dock.DockedPickup;
                 if (!Matches(p, t))
                 {
-                    if (p.SubDocks != null) WalkDocks(p.SubDocks.Docks, t);
+                    if (p.SubDocks != null) WalkDocks(p.SubDocks.TotalDocks, t);
                     continue;
                 }
                 int stored = Math.Max(1, dock.QuantityStored);

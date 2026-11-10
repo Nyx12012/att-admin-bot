@@ -2,7 +2,7 @@ const materials = require('../core/materials');
 const { UserError, own, RESERVED, quoteName } = require('../game/text');
 
 const MAX_BUY = 25;
-const MAX_SELL = 100;
+const ATM_MAX = 2147483647;
 const STALE_MS = 120000;
 const POUCH = 61648;
 const ATM = /^ATM Coin Bank/i;
@@ -233,8 +233,8 @@ class Economy {
 
   sellInfo(s, entry, username, wanted) {
     const doc = this.buyback(s);
-    const left = entry.daily ? entry.daily - this.counted(doc, this.today(), username, this.sellKey(entry)) : MAX_SELL;
-    return Math.min(wanted || MAX_SELL, Math.max(0, left), MAX_SELL);
+    const left = entry.daily ? Math.max(0, entry.daily - this.counted(doc, this.today(), username, this.sellKey(entry))) : Infinity;
+    return Math.min(wanted || Infinity, left);
   }
 
   saleEntries(doc, text) {
@@ -271,7 +271,7 @@ class Economy {
     if (priced.size === 0) {
       const limit = this.sellInfo(s, plain, user.username, wanted);
       if (limit <= 0) throw new UserError(`You hit today's limit of ${plain.daily} for ${plain.name}.`);
-      const look = this.parseTake(await s.value(`botcore take "${user.username}" ${hash} ${limit} count all`));
+      const look = this.parseTake(await s.value(`botcore take "${user.username}" ${hash} ${Number.isFinite(limit) ? limit : 0} count all`));
       return { rows: look.n ? [{ entry: plain, n: look.n, filter: null, label: plain.name }] : [], refused: look.refused, unpriced: [], capped: false };
     }
     this.needMaterials(s);
@@ -286,7 +286,7 @@ class Economy {
     kinds.sort((a, b) => b.entry.price - a.entry.price);
     const rows = [];
     const used = new Map();
-    let room = Math.min(wanted || MAX_SELL, MAX_SELL);
+    let room = wanted || Infinity;
     for (const k of kinds) {
       const key = this.sellKey(k.entry);
       const n = Math.min(k.n, this.sellInfo(s, k.entry, user.username, room) - (used.get(key) || 0));
@@ -320,6 +320,7 @@ class Economy {
       }
       const offer = plan.rows.reduce((sum, r) => sum + r.n * r.entry.price, 0);
       const count = plan.rows.reduce((sum, r) => sum + r.n, 0);
+      if (offer > ATM_MAX - await this.coins(s, user)) throw new UserError(`That sale pays ${offer} coins, more than your ATM can hold. Sell fewer with amount.`);
       const what = (rows) => rows.map((r) => `${r.n} x ${r.label}`).join(', ');
       const text = plan.rows.length === 1
         ? `**${what(plan.rows)}** for **${offer} coins**`
@@ -412,5 +413,4 @@ class Economy {
 }
 
 Economy.MAX_BUY = MAX_BUY;
-Economy.MAX_SELL = MAX_SELL;
 module.exports = Economy;
