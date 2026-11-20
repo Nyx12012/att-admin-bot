@@ -15,9 +15,10 @@ namespace BotCore
 {
     public class Entry : MelonMod
     {
-        public const string Version = "1.4.1";
+        public const string Version = "1.5.0";
 
         bool _registered;
+        float _quietUntil;
 
         public override void OnInitializeMelon()
         {
@@ -29,6 +30,12 @@ namespace BotCore
             MelonLogger.Instance log = LoggerInstance;
             try
             {
+                foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (a == typeof(Entry).Assembly || a.GetName().Name != "BotCore") continue;
+                    log.Error("An old BotCore.dll is in the Mods folder next to BotCore.Server.dll. Delete Mods\\BotCore.dll and restart the server. BotCore.Server stays off until then.");
+                    return;
+                }
                 string modsDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                 string userData = Path.Combine(Directory.GetParent(modsDir).FullName, "UserData");
                 BotCoreCommands.Sweep.ProtectFilePath = Path.Combine(Path.Combine(userData, "BotCore"), "sweep-protect.txt");
@@ -45,6 +52,7 @@ namespace BotCore
                     return;
                 }
                 log.Msg("BotCore " + Version + ": " + count + " commands ready");
+                TabletHost.Start(userData, log);
             }
             catch (Exception e)
             {
@@ -92,6 +100,18 @@ namespace BotCore
             int n = m.Commands.Count;
             foreach (Alta.Console.Module sub in m.Submodules) n += CountCommands(sub);
             return n;
+        }
+
+        public override void OnUpdate()
+        {
+            if (!TabletHost.On) return;
+            try { TabletHost.Tick(); }
+            catch (Exception e)
+            {
+                if (UnityEngine.Time.realtimeSinceStartup < _quietUntil) return;
+                _quietUntil = UnityEngine.Time.realtimeSinceStartup + 60f;
+                LoggerInstance.Error("The bot tablet failed a frame: " + e);
+            }
         }
 
         public override void OnApplicationQuit()

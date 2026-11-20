@@ -138,7 +138,7 @@ module.exports = {
       ctx.note(JSON.stringify(row));
       return ctx.ok('Row cleared', `${row.kind} of ${row.player}, ${row.coins} coins. Clearing it moves no coins, use /atm if they are owed any.`);
     }
-    if (!ctx.bot.links.of(s, ctx.user.id)) throw new UserError(NO_LINK);
+    ctx.requireLink(NO_LINK);
     if (ctx.sub === 'buy') {
       const x = find(doc, ctx.opt('product'));
       if (!x) throw new UserError(`"${ctx.opt('product')}" is not for sale. See /shop list.`);

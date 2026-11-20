@@ -61,6 +61,11 @@ for Redwood and another for Oak, and `/sell item` pays each piece by what it rea
 sells one wood or metal the same way. Daily limits are optional, and a sell price at or above the
 shop price is refused so nobody can print coins. Nothing is bought, sold or withdrawn within 15 m of an ATM. Change that with `/shop atmdistance`.
 
+**The bot tablet in game (needs BotCore).** Players with the `BotCore.Client.dll` mod get a Bot Menu
+bubble on the quick access wheel. It opens your bot's menu on their tablet: Plots, Shop, Sell and
+Admin (Kick, Bring, TP to, Ban). You choose which roles see each page, and a player whose roles open
+no page never sees the bubble. No Discord link is needed in game.
+
 **Alchemy.** Build your own recipes for your server. Put items in the front pockets, in order or not,
 and either bring your hands together or just wait. A recipe can run up to 5 console commands, give
 items or a buff, use up the items, have a cooldown, work only for named players, and hit everyone in
@@ -98,14 +103,14 @@ Every admin action is written to `data/audit/` and, if you pick a channel, poste
 ## BotCore (optional)
 
 The game's coin and mailbox commands look players up on Alta's old servers, which are gone.
-BotCore is a small server mod that answers those lookups, which turns on `/atm`, `/mail`, `/shop`,
+BotCore.Server is a small server mod that answers those lookups, which turns on `/atm`, `/mail`, `/shop`,
 `/sell`, `/balance` and `/withdraw`. It also removes sold items safely from a player's hands, belt,
 bag and the pouches clipped to it, reads what wood or metal they are made of, tells the bot where the ground is for
 `/chunk show`, and records how the server was started so `/boot` can start it again.
 On Windows it also starts the bot together with the game server: drop the bot into `UserData`
 under any folder name, fill in `.env`, and the first server start installs what it needs (Node.js
-too, when the PC has none) and starts it. See [botcore/README.md](botcore/README.md). Without
-BotCore everything else works.
+too, when the PC has none) and starts it. BotCore.Client is the players' half: the bot tablet. See
+[botcore/README.md](botcore/README.md). Without BotCore everything else works.
 
 ## Commands
 

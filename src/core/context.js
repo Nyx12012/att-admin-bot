@@ -102,6 +102,10 @@ class Context {
     this.notes.push(text);
   }
 
+  requireLink(message) {
+    if (!this.bot.links.of(this.needServer(), this.user.id)) throw new UserError(message);
+  }
+
   async reply(payload) {
     if (typeof payload === 'string') payload = { content: payload, embeds: [], components: [] };
     if (this.i.deferred || this.i.replied) return this.i.editReply(payload);

@@ -17,7 +17,7 @@ using UnityEngine;
 namespace BotCore
 {
     [Module("botcore", "Bridge verbs for the ATT Admin Bot on a stock server")]
-    public static class BotCoreCommands
+    public static partial class BotCoreCommands
     {
         [Command("version", "BotCore version")]
         public static string Version()

@@ -79,7 +79,7 @@ module.exports = {
       eco.saveBuyback(s);
       return ctx.ok('Buying', doc.paused ? 'Paused.' : 'Back on.');
     }
-    if (!ctx.bot.links.of(s, ctx.user.id)) throw new UserError('Link your account with /link first, the bot pays your in-game name.');
+    ctx.requireLink('Link your account with /link first, the bot pays your in-game name.');
     const entries = eco.saleEntries(doc, ctx.opt('goods'));
     if (!entries.length) throw new UserError(`The bot does not buy "${ctx.opt('goods')}". See /sell list.`);
     const r = await eco.sell(ctx, entries, ctx.opt('amount'));

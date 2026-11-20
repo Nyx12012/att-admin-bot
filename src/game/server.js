@@ -6,7 +6,7 @@ const { quoteName, quoteText, vec, vecText, chunkName, isSafeName, UserError } =
 const EVENTS = [
   'PlayerJoined', 'PlayerLeft', 'PlayerKilled', 'PlayerStateChanged', 'PlayerMovedChunk',
   'ObjectKilled', 'ServerSettingsChanged', 'SocialTabletPlayerReported', 'SocialTabletPlayerBanned',
-  'AtmBalanceChanged', 'TradeDeckUsed', 'PopulationModified', 'TrialStarted', 'TrialFinished',
+  'AtmBalanceChanged', 'TradeDeckUsed', 'PopulationModified', 'TrialStarted', 'TrialFinished', 'BotCoreTablet',
 ];
 
 const AREAS = [
