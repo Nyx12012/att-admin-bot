@@ -58,11 +58,7 @@ module.exports = {
       let made = 0;
       if (ctx.opt('mail')) {
         const user = await s.lookup(name);
-        for (let i = 0; i < x.count; i += 1) {
-          const r = await s.run(`trade post "${user.username}" ${x.hash} 1`, { allowError: true });
-          if (r.error) break;
-          made += 1;
-        }
+        made = (await ctx.bot.economy.deliver(s, user.username, { hash: x.hash }, x.count)).delivered;
       } else {
         made = await give(s, name, items.byHash(x.hash) || { hash: x.hash, name: x.name }, x.count);
       }

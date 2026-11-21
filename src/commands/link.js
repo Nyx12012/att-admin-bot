@@ -8,7 +8,7 @@ module.exports = {
     .setName('link')
     .setDescription('Link your Discord account to your in-game name')
     .addSubcommand((s) => addPlayer(s.setName('start').setDescription('Get a code shown in game (you must be online)'), { description: 'Your in-game name' }))
-    .addSubcommand((s) => addText(s.setName('confirm').setDescription('Type the code you saw in game'), 'code', 'The 4 digit code', { max: 8 }))
+    .addSubcommand((s) => addText(s.setName('confirm').setDescription('Type the code you saw in game'), 'code', 'The code from the game or the bot tablet', { max: 8 }))
     .addSubcommand((s) => s.setName('me').setDescription('Show who you are linked to'))
     .addSubcommand((s) => s.setName('unlink').setDescription('Remove your own link'))
     .addSubcommand((s) => s.addUserOption((o) => o.setName('member').setDescription('Discord member').setRequired(false))

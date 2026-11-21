@@ -79,6 +79,20 @@ class Bot {
     }
   }
 
+  async memberOf(server, discordId) {
+    if (!server || !server.guildId || !discordId) return null;
+    if (!this.memberCache) this.memberCache = new Map();
+    const key = `${server.guildId}:${discordId}`;
+    const hit = this.memberCache.get(key);
+    if (hit && hit.until > Date.now()) return hit.value;
+    const guilds = this.client && this.client.guilds;
+    const guild = guilds && guilds.cache && guilds.cache.get(server.guildId);
+    const member = guild && guild.members ? await guild.members.fetch(discordId).catch(() => null) : null;
+    const value = member ? { member, guild } : null;
+    this.memberCache.set(key, { value, until: Date.now() + 60000 });
+    return value;
+  }
+
   statNames() {
     return STATS;
   }

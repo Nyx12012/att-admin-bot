@@ -137,6 +137,7 @@ class Plots {
   }
 
   canManage(ctx, plot) {
+    if (ctx.actor && ctx.actor.toLowerCase() === plot.owner.toLowerCase()) return true;
     const link = this.bot.links.of(ctx.server, ctx.user.id);
     if (link && link.username.toLowerCase() === plot.owner.toLowerCase()) return true;
     return this.bot.permissions.allows(ctx.i, 'plot.admin', 'admin');

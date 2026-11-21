@@ -15,7 +15,7 @@ namespace BotCore.Client
 {
     public class Mod : MelonMod
     {
-        public const string Version = "1.5.0";
+        public const string Version = "1.6.0";
         internal static MelonLogger.Instance Log;
 
         static readonly Dictionary<string, float> quietUntil = new Dictionary<string, float>();
@@ -38,7 +38,7 @@ namespace BotCore.Client
                     return;
                 }
                 _on = Hooks.Apply(HarmonyInstance);
-                if (_on) Log.Msg("BotCore.Client " + Version + " ready: the bot bubble shows on servers with BotCore.Server 1.5.0 or newer.");
+                if (_on) Log.Msg("BotCore.Client " + Version + " ready: the bot bubble shows on servers with BotCore.Server 1.6.0 or newer.");
             }
             catch (Exception e)
             {

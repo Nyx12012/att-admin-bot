@@ -16,6 +16,7 @@ const GROUPS = [
 ];
 
 module.exports = {
+  GROUPS,
   data: new SlashCommandBuilder()
     .setName('help')
     .setDescription('What the bot can do')

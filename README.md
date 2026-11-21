@@ -60,11 +60,28 @@ confirm first. Prices can depend on the wood or metal: `/sell add` with a `mater
 for Redwood and another for Oak, and `/sell item` pays each piece by what it really is. `/shop add`
 sells one wood or metal the same way. Daily limits are optional, and a sell price at or above the
 shop price is refused so nobody can print coins. Nothing is bought, sold or withdrawn within 15 m of an ATM. Change that with `/shop atmdistance`.
+Bought and mailed stacks arrive in pouches, one per full stack, the way the game's own mail does it.
+
+**Job roles.** `/shop rate` gives a Discord role or a role from the Server launcher its own prices,
+in percent: a Miner could buy at 90% and sell at 120%. A player with several roles gets the best
+buy price and the best sell price among them. Selling never pays more than that player would pay
+to buy the same item, so no role can print coins. Discord roles count once the player used `/link`.
 
 **The bot tablet in game (needs BotCore).** Players with the `BotCore.Client.dll` mod get a Bot Menu
-bubble on the quick access wheel. It opens your bot's menu on their tablet: Plots, Shop, Sell and
-Admin (Kick, Bring, TP to, Ban). You choose which roles see each page, and a player whose roles open
-no page never sees the bubble. No Discord link is needed in game.
+bubble on the quick access wheel. It opens your bot on their tablet. Every player gets Shop, Sell,
+Me (coins, withdraw, a code to link Discord, stats) and their own Plots (trust friends, pick a main
+plot, set the arrival spot). Staff get Players (bring, go to, heal, freeze, kick, ban, kill, god
+mode, inventory and more), Plots (list, create where you stand, edit, delete), Cleanup (count then
+clear loose items near you, destroy the next items you pick up, show the code of what you pick up,
+run a cleanup rule), Server (time, save, restart, festivals), Spawn (items and kits, with an item
+picker) and Commands: every bot command gets a form with pickers for players, items, numbers and
+choices, under the same rules as on Discord. Only commands that need typed text stay on Discord.
+You choose which roles see each page, and a player whose roles open no page never sees the bubble.
+No Discord link is needed in game.
+
+**Actions.** `/cc tablet` puts a console kit on the tablet as a button for the Discord or game roles
+you pick, with a cooldown. It runs on the player who taps it, or on a player they pick. Players only
+get what you set up.
 
 **Alchemy.** Build your own recipes for your server. Put items in the front pockets, in order or not,
 and either bring your hands together or just wait. A recipe can run up to 5 console commands, give
@@ -127,7 +144,7 @@ too, when the PC has none) and starts it. BotCore.Client is the players' half: t
 | `/tp`, `/location`, `/home` | Teleports, saved spots, respawn points |
 | `/kill`, `/heal`, `/godmode`, `/stat`, `/buff` | Health and stats |
 | `/spawn`, `/kit`, `/mail`, `/atm`, `/string` | Items and coins |
-| `/shop`, `/sell`, `/balance`, `/withdraw` | The shop, selling to the bot, coins |
+| `/shop`, `/sell`, `/balance`, `/withdraw` | The shop, selling to the bot, job role prices, coins |
 | `/alchemy` | Your own item recipes and carried item buffs |
 | `/time`, `/settings`, `/save`, `/festival`, `/world` | The world and the server |
 | `/boot`, `/shutdown`, `/restart` | Start, close or restart the game server from Discord |
@@ -136,7 +153,7 @@ too, when the PC has none) and starts it. BotCore.Client is the players' half: t
 | `/despawn`, `/despawnmenu`, `/wipe`, `/chunks` | Remove one item from the ground, look into or reset a chunk |
 | `/report` | What happens on a tablet report |
 | `/stats`, `/playtime`, `/autobuff` | Leaderboards, time online, a buff on every join |
-| `/controlpanel`, `/cc`, `/items`, `/say`, `/embed`, `/poll` | Buttons, console kits, item codes, posts |
+| `/controlpanel`, `/cc`, `/items`, `/say`, `/embed`, `/poll` | Buttons, console kits (and tablet actions), item codes, posts |
 | `/fun` | Smite, fling and friends |
 | `/link` | Link Discord accounts to in game names |
 | `/purge` | Delete recent messages in a channel |

@@ -110,6 +110,7 @@ namespace BotCore.Client
     internal sealed class Menu
     {
         internal string Name = "";
+        internal int V;
         internal bool Bot;
         internal List<string> Pages = new List<string>();
 
@@ -222,12 +223,13 @@ namespace BotCore.Client
                 Menu m = new Menu();
                 m.Name = Mod.Clean((string)o["name"] ?? "", 32);
                 m.Bot = (bool?)o["bot"] ?? false;
+                m.V = (int?)o["v"] ?? 1;
                 JArray pages = o["pages"] as JArray;
                 if (pages != null)
                     foreach (JToken p in pages)
                     {
-                        string page = (string)p;
-                        if (page == "plots" || page == "shop" || page == "sell" || page == "admin") m.Pages.Add(page);
+                        string page = Mod.Clean((string)p ?? "", 16);
+                        if (page.Length > 0 && m.Pages.Count < 16 && !m.Pages.Contains(page)) m.Pages.Add(page);
                     }
                 bool first = Current == null;
                 Current = m;
@@ -270,7 +272,7 @@ namespace BotCore.Client
             return o;
         }
 
-        internal static void Ask(string page, string act, JObject args, Action<JObject> done)
+        internal static void Ask(string route, int at, int n, Action<JObject> done)
         {
             if (_server == null || Current == null)
             {
@@ -280,9 +282,9 @@ namespace BotCore.Client
             int id = _nextId++;
             JObject o = new JObject();
             o["id"] = id;
-            o["page"] = page;
-            o["act"] = act;
-            o["args"] = args ?? new JObject();
+            o["go"] = route ?? "";
+            o["at"] = at;
+            o["n"] = n;
             string json = o.ToString(Formatting.None);
             if (json.Length > Wire.MaxChars || !Wire.Send(_server, Wire.Ask, json))
             {

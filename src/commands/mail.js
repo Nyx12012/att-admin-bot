@@ -16,9 +16,12 @@ module.exports = {
     if (!item) throw new UserError(`No item matches "${ctx.opt('item')}".`);
     const amount = ctx.opt('amount') || 1;
     const material = materials.fromOption(ctx.opt('material'));
-    await s.run(`trade post "${user.username}" ${item.hash}${material ? ` ${material.value}` : ''} ${amount}${ctx.opt('forged') ? ' forged' : ''}`);
+    const sent = await ctx.bot.economy.deliver(s, user.username, item, amount, { material: material && material.value, forged: Boolean(ctx.opt('forged')) });
     const label = materials.named(item.name, material);
-    ctx.note(`${amount} x ${label} to ${user.username}`);
-    return ctx.ok('Mailed', `${amount} x **${label}** is waiting in ${user.username}'s mailbox.`);
+    ctx.note(`${sent.delivered} x ${label} to ${user.username}`);
+    if (sent.delivered === 0) throw new UserError(`Nothing was mailed. ${sent.problem || ''}`.trim());
+    const how = sent.pouches ? ` in ${sent.pouches} pouch${sent.pouches === 1 ? '' : 'es'}` : '';
+    if (sent.delivered < amount) return ctx.warn('Partly mailed', `${sent.delivered} of ${amount} x **${label}** reached ${user.username}'s mailbox${how}. ${sent.problem || ''}`.trim());
+    return ctx.ok('Mailed', `${amount} x **${label}** is waiting in ${user.username}'s mailbox${how}.`);
   },
 };

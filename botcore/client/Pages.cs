@@ -10,7 +10,6 @@ namespace BotCore.Client
         internal Func<string> Label;
         internal Func<string> Detail;
         internal Action Run;
-        internal Func<Page> Opens;
         internal bool Confirm;
         internal bool IsText;
         internal bool Warn;
@@ -29,15 +28,14 @@ namespace BotCore.Client
 
     internal sealed class Remote
     {
-        internal string Area;
-        internal string Act;
+        internal string Route;
         internal int At;
         internal int Total;
         internal int Per;
         internal bool Loading;
+        internal string Title = "";
         internal string Status = "";
         internal List<Row> Rows = new List<Row>();
-        internal Func<JObject, Row> Make;
         int gen;
 
         internal void Fetch(int at)
@@ -45,35 +43,30 @@ namespace BotCore.Client
             if (Per <= 0) return;
             Loading = true;
             int mine = ++gen;
-            JObject args = new JObject();
-            args["at"] = Math.Max(0, at);
-            args["n"] = Per;
-            Net.Ask(Area, Act, args, delegate(JObject a)
+            Net.Ask(Route, Math.Max(0, at), Per, delegate(JObject a)
             {
                 if (mine != gen) return;
                 Loading = false;
-                Rows = new List<Row>();
                 if (!BotPages.Ok(a))
                 {
+                    Rows = new List<Row>();
                     Status = BotPages.Str(a, "text");
                     Total = 0;
                     At = 0;
                 }
-                else
-                {
-                    JArray rows = a["rows"] as JArray;
-                    if (rows != null)
-                        foreach (JToken t in rows)
-                        {
-                            JObject o = t as JObject;
-                            if (o != null) Rows.Add(Make(o));
-                        }
-                    Total = BotPages.Int(a, "total", Rows.Count);
-                    At = BotPages.Int(a, "at", 0);
-                    Status = BotPages.Str(a, "status");
-                }
+                else Fill(a);
                 BotTablet.Dirty();
             });
+        }
+
+        internal void Fill(JObject a)
+        {
+            Rows = BotPages.RowsOf(a);
+            Total = BotPages.Int(a, "total", Rows.Count);
+            At = BotPages.Int(a, "at", 0);
+            Status = BotPages.Str(a, "status");
+            string t = BotPages.Str(a, "title");
+            if (t.Length > 0) Title = t;
         }
     }
 
@@ -102,11 +95,6 @@ namespace BotCore.Client
             return delegate { return s; };
         }
 
-        static Row Nav(string id, string label, Func<Page> opens)
-        {
-            return new Row { Id = id, Label = Fixed(label), Opens = opens };
-        }
-
         static Row Text(string s, bool warn)
         {
             return new Row { Id = "text", Label = Fixed(s), IsText = true, Warn = warn };
@@ -119,207 +107,103 @@ namespace BotCore.Client
             return rows;
         }
 
+        static string AreaOf(string route)
+        {
+            if (string.IsNullOrEmpty(route)) return null;
+            int cut = route.IndexOfAny(new char[] { '/', '?' });
+            return cut < 0 ? route : route.Substring(0, cut);
+        }
+
         internal static Page Menu()
         {
-            Page p = new Page { Key = "menu" };
-            p.Title = delegate { return Net.Current != null ? Net.Current.Title : "Bot Menu"; };
-            p.Status = delegate { return Net.Current != null && !Net.Current.Bot ? "The bot is not connected right now." : ""; };
-            p.Rows = delegate
+            Menu m = Net.Current;
+            if (m != null && m.V < 2)
             {
-                List<Row> rows = new List<Row>();
-                Menu m = Net.Current;
-                if (m == null) return rows;
-                if (m.Pages.Contains("plots")) rows.Add(Nav("plots", "Plots", Plots));
-                if (m.Pages.Contains("shop")) rows.Add(Nav("shop", "Shop", Shop));
-                if (m.Pages.Contains("sell")) rows.Add(Nav("sell", "Sell", Sell));
-                if (m.Pages.Contains("admin")) rows.Add(Nav("admin", "Admin", Admin));
-                return rows;
-            };
-            return p;
-        }
-
-        static Page Listing(string key, string area, string act, string title, Func<JObject, Row> make)
-        {
-            Page p = new Page { Key = key, Area = area, Title = Fixed(title) };
-            p.Remote = new Remote { Area = area, Act = act, Make = make };
-            return p;
-        }
-
-        static Page Shop()
-        {
-            return Listing("shop", "shop", "list", "Shop", delegate(JObject o)
-            {
-                string key = Str(o, "k"), name = Str(o, "t"), detail = Str(o, "d");
-                int price = Int(o, "p", 0);
-                return new Row { Id = key, Label = Fixed(name), Detail = Fixed(detail), Opens = delegate { return Buy(key, name, detail, price); } };
-            });
-        }
-
-        static Page Buy(string key, string name, string detail, int price)
-        {
-            Page p = new Page { Key = "buy:" + key, Area = "shop", Title = Fixed(name), Status = Fixed(detail.Length > 0 ? detail + ". Tap twice to buy." : "Tap twice to buy.") };
-            p.Rows = delegate
-            {
-                List<Row> rows = new List<Row>();
-                foreach (int n in new int[] { 1, 5, 10 })
-                {
-                    int amount = n;
-                    rows.Add(new Row
-                    {
-                        Id = "buy" + amount,
-                        Label = Fixed("Buy " + amount),
-                        Detail = Fixed(price > 0 ? (amount * price) + " coins, sent to your mailbox" : "sent to your mailbox"),
-                        Confirm = true,
-                        Run = delegate
-                        {
-                            JObject args = new JObject();
-                            args["key"] = key;
-                            args["amount"] = amount;
-                            Do("shop", "buy", args);
-                        },
-                    });
-                }
-                return rows;
-            };
-            return p;
-        }
-
-        static Page Sell()
-        {
-            return Listing("sell", "sell", "list", "Sell", delegate(JObject o)
-            {
-                string key = Str(o, "k");
-                return new Row { Id = key, Label = Fixed(Str(o, "t")), Detail = Fixed(Str(o, "d")), Run = delegate { Quote(key, null); } };
-            });
-        }
-
-        static void Quote(string key, string shownQuote)
-        {
-            JObject args = new JObject();
-            args["key"] = key;
-            if (shownQuote != null)
-            {
-                args["phase"] = "do";
-                args["quote"] = shownQuote;
+                Page old = new Page { Key = "old", Title = Fixed(m.Title) };
+                old.Rows = delegate { return Lines("This server runs an older BotCore.Server. Ask the server owner to update it to 1.6 or newer so this tablet works again.", true); };
+                return old;
             }
-            Net.Ask("sell", "sell", args, delegate(JObject a)
+            Page p = Screen("home", BotTablet.PerFor(1));
+            p.Area = null;
+            p.Status = delegate { return Net.Current != null && !Net.Current.Bot ? "The bot is not connected right now." : (p.Remote.Loading ? "Asking the bot" : p.Remote.Status); };
+            return p;
+        }
+
+        static Page Screen(string route, int per)
+        {
+            Remote rm = new Remote { Route = route, Per = per };
+            Page p = new Page { Key = route, Area = AreaOf(route), Remote = rm };
+            p.Title = delegate { return rm.Title.Length > 0 ? rm.Title : (Net.Current != null ? Net.Current.Title : "Bot Menu"); };
+            p.OnOpen = delegate { if (rm.Rows.Count == 0 && !rm.Loading) rm.Fetch(rm.At); };
+            return p;
+        }
+
+        internal static Page FromAnswer(JObject a, int per)
+        {
+            if (!Ok(a)) return Result(a);
+            string route = Str(a, "r");
+            if (route.Length > 0)
             {
-                Page next = Ok(a) && (bool?)a["quote"] == true ? Offer(key, a) : Result(a);
-                if (shownQuote != null) BotTablet.Replace(next);
+                Page p = Screen(route, per);
+                p.Remote.Fill(a);
+                p.OnOpen = null;
+                return p;
+            }
+            string title = Str(a, "title");
+            List<Row> rows = RowsOf(a);
+            string text = Str(a, "text");
+            if (text.Length > 0) rows.AddRange(Lines(text, false));
+            if (rows.Count == 0) rows.AddRange(Lines("Done.", false));
+            string status = Str(a, "status");
+            Page s = new Page { Key = "page:" + title, Title = Fixed(title.Length > 0 ? title : "Done") };
+            s.Rows = delegate { return rows; };
+            if (status.Length > 0) s.Status = Fixed(status);
+            return s;
+        }
+
+        internal static List<Row> RowsOf(JObject a)
+        {
+            List<Row> rows = new List<Row>();
+            JArray list = a == null ? null : a["rows"] as JArray;
+            if (list == null) return rows;
+            foreach (JToken t in list)
+            {
+                JObject o = t as JObject;
+                if (o != null) rows.Add(Make(o));
+            }
+            return rows;
+        }
+
+        static Row Make(JObject o)
+        {
+            string key = Str(o, "k");
+            string mode = Str(o, "m");
+            string detail = Str(o, "d");
+            Row r = new Row
+            {
+                Id = key.Length > 0 ? key : Str(o, "t"),
+                Label = Fixed(Str(o, "t")),
+                Detail = detail.Length > 0 ? Fixed(detail) : null,
+                Confirm = Int(o, "c", 0) == 1,
+                Warn = Int(o, "w", 0) == 1,
+                IsText = mode == "x" || key.Length == 0,
+            };
+            if (!r.IsText) r.Run = delegate { Tap(key, mode); };
+            return r;
+        }
+
+        static void Tap(string route, string mode)
+        {
+            int depth = BotTablet.Depth + (mode == "s" ? 0 : mode == "u" ? -1 : 1);
+            int per = BotTablet.PerFor(depth);
+            Net.Ask(route, 0, per, delegate(JObject a)
+            {
+                Page next = FromAnswer(a, per);
+                if (!Ok(a)) BotTablet.Push(next);
+                else if (mode == "s") BotTablet.Replace(next);
+                else if (mode == "u") BotTablet.Up(next);
                 else BotTablet.Push(next);
             });
-            BotTablet.Dirty();
-        }
-
-        static Page Offer(string key, JObject a)
-        {
-            string text = Str(a, "text");
-            string title = Str(a, "title");
-            Page p = new Page { Key = "offer:" + key, Area = "sell", Title = Fixed(title.Length > 0 ? title : "Sell these?") };
-            p.Rows = delegate
-            {
-                List<Row> rows = new List<Row>();
-                rows.Add(new Row { Id = "sell", Label = Fixed("Sell"), Detail = Fixed("the items are gone once you tap"), Run = delegate { Quote(key, text); } });
-                rows.AddRange(Lines(text, false));
-                return rows;
-            };
-            return p;
-        }
-
-        static Page Plots()
-        {
-            return Listing("plots", "plots", "list", "Plots", delegate(JObject o)
-            {
-                string name = Str(o, "k");
-                return new Row { Id = name, Label = Fixed(Str(o, "t")), Detail = Fixed(Str(o, "d")), Opens = delegate { return Plot(name); } };
-            });
-        }
-
-        static Page Plot(string name)
-        {
-            string info = null;
-            bool failed = false;
-            Page p = new Page { Key = "plot:" + name, Area = "plots", Title = Fixed(name) };
-            p.OnOpen = delegate
-            {
-                JObject args = new JObject();
-                args["name"] = name;
-                Net.Ask("plots", "info", args, delegate(JObject a)
-                {
-                    failed = !Ok(a);
-                    info = Str(a, "text");
-                    BotTablet.Dirty();
-                });
-            };
-            p.Rows = delegate
-            {
-                List<Row> rows = new List<Row>();
-                JObject args = new JObject();
-                args["name"] = name;
-                rows.Add(new Row { Id = "go", Label = Fixed("Go there"), Detail = Fixed("teleport to its arrival spot"), Run = delegate { Do("plots", "go", args); } });
-                if (info == null) rows.Add(Text("Asking the bot", false));
-                else rows.AddRange(Lines(info, failed));
-                return rows;
-            };
-            return p;
-        }
-
-        static Page Admin()
-        {
-            Page p = new Page { Key = "admin", Area = "admin", Title = Fixed("Admin") };
-            p.Rows = delegate
-            {
-                List<Row> rows = new List<Row>();
-                rows.Add(Nav("kick", "Kick", delegate { return Players("kick", "Kick who?"); }));
-                rows.Add(Nav("bring", "Bring", delegate { return Players("bring", "Bring who to you?"); }));
-                rows.Add(Nav("goto", "TP to", delegate { return Players("goto", "Go to who?"); }));
-                rows.Add(Nav("ban", "Ban", delegate { return Players("ban", "Ban who?"); }));
-                return rows;
-            };
-            return p;
-        }
-
-        static Page Players(string act, string title)
-        {
-            return Listing("players:" + act, "admin", "players", title, delegate(JObject o)
-            {
-                string who = Str(o, "k");
-                JObject args = new JObject();
-                args["player"] = who;
-                Row r = new Row { Id = who, Label = Fixed(Str(o, "t")) };
-                if (act == "ban") r.Opens = delegate { return Ban(who); };
-                else
-                {
-                    r.Confirm = act == "kick";
-                    r.Run = delegate { Do("admin", act, args); };
-                }
-                return r;
-            });
-        }
-
-        static Page Ban(string who)
-        {
-            Page p = new Page { Key = "ban:" + who, Area = "admin", Title = Fixed("Ban " + who), Status = Fixed("Tap twice. The bot keeps the ban.") };
-            p.Rows = delegate
-            {
-                List<Row> rows = new List<Row>();
-                int[] hours = new int[] { 24, 168, 0 };
-                string[] names = new string[] { "1 day", "1 week", "Forever" };
-                for (int i = 0; i < hours.Length; i++)
-                {
-                    JObject args = new JObject();
-                    args["player"] = who;
-                    args["hours"] = hours[i];
-                    rows.Add(new Row { Id = "ban" + hours[i], Label = Fixed(names[i]), Confirm = true, Warn = hours[i] == 0, Run = delegate { Do("admin", "ban", args); } });
-                }
-                return rows;
-            };
-            return p;
-        }
-
-        static void Do(string area, string act, JObject args)
-        {
-            Net.Ask(area, act, args, delegate(JObject a) { BotTablet.Push(Result(a)); });
             BotTablet.Dirty();
         }
 

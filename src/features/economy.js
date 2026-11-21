@@ -8,10 +8,108 @@ const POUCH = 61648;
 const ATM = /^ATM Coin Bank/i;
 const ATM_METERS = 15;
 
+function atLeast(text, major, minor) {
+  const m = String(text || '').match(/^BotCore (\d+)\.(\d+)/);
+  return Boolean(m) && (Number(m[1]) > major || (Number(m[1]) === major && Number(m[2]) >= minor));
+}
+
 class Economy {
   constructor(bot) {
     this.bot = bot;
     this.busy = new Map();
+    this.stacks = new Map();
+  }
+
+  async stackOf(s, hash) {
+    if (!atLeast(s.botcore, 1, 6)) return 1;
+    const key = `${s.id}:${hash}`;
+    if (this.stacks.has(key)) return this.stacks.get(key);
+    const r = await s.run(`botcore stack ${Number(hash)}`, { allowError: true });
+    const m = String(r.resultString || '').match(/^stack (\d+)$/);
+    const cap = m ? Math.max(1, Number(m[1])) : 1;
+    if (!r.error) this.stacks.set(key, cap);
+    return cap;
+  }
+
+  async deliver(s, username, item, amount, { material = null, forged = false } = {}) {
+    const cap = await this.stackOf(s, item.hash);
+    let delivered = 0;
+    let pouches = 0;
+    let problem = null;
+    let unknown = false;
+    while (delivered < amount) {
+      const n = Math.min(cap, amount - delivered);
+      let r;
+      try {
+        r = await s.run(`trade post "${username}" ${item.hash}${material ? ` ${material}` : ''} ${n}${forged ? ' forged' : ''}`, { allowError: true });
+      } catch (e) {
+        unknown = true;
+        problem = e.message;
+        break;
+      }
+      if (r.error) {
+        problem = r.error;
+        break;
+      }
+      delivered += n;
+      if (n > 1) pouches += 1;
+    }
+    return { delivered, pouches, problem, unknown };
+  }
+
+  rates(server) {
+    const doc = this.shop(server);
+    if (!doc.rates) doc.rates = {};
+    return doc.rates;
+  }
+
+  async gameRoles(s, username) {
+    if (!atLeast(s.botcore, 1, 6) || !s.online) return [];
+    const r = await s.run(`botcore tablet roles "${username}"`, { allowError: true }).catch(() => null);
+    const m = r && String(r.resultString || '').match(/^roles (.+)$/);
+    return m && m[1] !== '-' ? m[1].split(',').map((x) => x.trim().toLowerCase()).filter(Boolean) : [];
+  }
+
+  async rateOf(ctx, username) {
+    const s = ctx.server;
+    const rates = Object.entries(this.rates(s));
+    const none = { buy: 100, sell: 100, buyBy: null, sellBy: null };
+    if (rates.length === 0) return none;
+    let member = ctx.i && ctx.i.member && ctx.i.member.roles ? ctx.i.member : null;
+    if (!member) {
+      const found = await this.bot.memberOf(s, this.bot.links.ownerOf(s, username));
+      member = found ? found.member : null;
+    }
+    const discord = member && member.roles && member.roles.cache ? new Set(member.roles.cache.keys()) : new Set();
+    const game = new Set(ctx.gameRoles || (rates.some(([k]) => k.startsWith('g:')) ? await this.gameRoles(s, username) : []));
+    const out = { ...none };
+    for (const [key, r] of rates) {
+      const hit = key.startsWith('d:') ? discord.has(key.slice(2)) : game.has(key.slice(2));
+      if (!hit) continue;
+      if (r.buy != null && r.buy < out.buy) {
+        out.buy = r.buy;
+        out.buyBy = r.name;
+      }
+      if (r.sell != null && r.sell > out.sell) {
+        out.sell = r.sell;
+        out.sellBy = r.name;
+      }
+    }
+    return out;
+  }
+
+  buyUnit(item, rate) {
+    return item.price > 0 ? Math.max(1, Math.ceil((item.price * rate.buy) / 100)) : 0;
+  }
+
+  sellUnit(s, entry, rate) {
+    let unit = Math.floor((entry.price * rate.sell) / 100);
+    for (const x of Object.values(this.shop(s).items)) {
+      if (x.role || x.hash !== entry.hash) continue;
+      if (entry.material && x.material && x.material !== entry.material) continue;
+      unit = Math.min(unit, Math.max(0, this.buyUnit(x, rate) - 1));
+    }
+    return Math.max(0, unit);
   }
 
   shop(server) {
@@ -152,8 +250,10 @@ class Economy {
       const left = item.daily - this.counted(doc, this.today(), user.username, item.key);
       if (left < amount) throw new UserError(`You can buy ${Math.max(0, left)} more ${item.name} today.`);
     }
+    const rate = await this.rateOf(ctx, user.username);
+    const unit = this.buyUnit(item, rate);
     return this.lock(s, user.username, 'a purchase', async () => {
-      const total = item.price * amount;
+      const total = unit * amount;
       const before = await this.coins(s, user);
       if (before < total) throw new UserError(`${amount} x ${item.name} costs ${total} coins and you have ${before}.`);
       await this.checkPlace(s, user);
@@ -168,6 +268,7 @@ class Economy {
       }
       this.update(s, row, { state: 'paid' });
       let delivered = 0;
+      let pouches = 0;
       let problem = null;
       let unknown = false;
       if (item.role) {
@@ -178,28 +279,16 @@ class Economy {
           problem = `Discord refused the role (${e.message}). Does the bot have Manage Roles, above that role?`;
         }
       } else {
-        for (let i = 0; i < amount; i += 1) {
-          let r;
-          try {
-            r = await s.run(`trade post "${user.username}" ${item.hash}${item.material ? ` ${item.material}` : ''} 1${item.forged ? ' forged' : ''}`, { allowError: true });
-          } catch (e) {
-            unknown = true;
-            problem = e.message;
-            break;
-          }
-          if (r.error) {
-            problem = r.error;
-            break;
-          }
-          delivered += 1;
-        }
+        const sent = await this.deliver(s, user.username, item, amount, { material: item.material, forged: item.forged });
+        ({ delivered, problem, unknown } = sent);
+        pouches = sent.pouches;
       }
       if (unknown) {
         this.update(s, row, { state: `console lost after ${delivered} of ${amount} delivered, check the mailbox`, delivered });
         this.log(s, `**${user.username}**: the console dropped during a purchase of ${item.name}. See /shop pending, row ${row.id}.`);
         throw new UserError(`The console dropped after ${delivered} of ${amount} were sent. An admin can see this in /shop pending, row ${row.id}.`);
       }
-      const refund = (amount - delivered) * item.price;
+      const refund = (amount - delivered) * unit;
       let final = after;
       if (refund > 0) {
         final = await this.change(s, user, after, refund);
@@ -215,9 +304,9 @@ class Economy {
       }
       this.close(s, row);
       if (delivered === 0) throw new UserError(`Nothing was delivered and your coins were returned. ${problem || ''}`.trim());
-      ctx.note(`${delivered} x ${item.name} for ${delivered * item.price} coins`);
-      this.log(s, `**${user.username}** bought ${delivered} x ${item.name} for ${delivered * item.price} coins, ${final} left.`);
-      return { delivered, amount, spent: delivered * item.price, left: final, problem };
+      ctx.note(`${delivered} x ${item.name} for ${delivered * unit} coins`);
+      this.log(s, `**${user.username}** bought ${delivered} x ${item.name} for ${delivered * unit} coins, ${final} left.`);
+      return { delivered, amount, spent: delivered * unit, left: final, problem, pouches, unit, rate };
     });
   }
 
@@ -310,7 +399,9 @@ class Economy {
     if (user.state !== 'online') throw new UserError('You have to be in game, carrying what you want to sell.');
     return this.lock(s, user.username, 'a sale', async () => {
       await this.checkPlace(s, user);
+      const rate = await this.rateOf(ctx, user.username);
       const plan = await this.planSale(s, user, entries, wanted);
+      for (const r of plan.rows) r.unit = this.sellUnit(s, r.entry, rate);
       const skipped = plan.unpriced.length ? ` The bot does not buy ${plan.unpriced.join(', ')}.` : '';
       if (plan.rows.length === 0) {
         if (plan.capped) throw new UserError(`You hit today's limit for ${title}.`);
@@ -318,14 +409,15 @@ class Economy {
           ? `You carry ${title} with things stored inside. Empty it first.`
           : `You are not carrying any ${title} the bot buys. Hold it, or keep it on your belt or in your bag.${skipped}`);
       }
-      const offer = plan.rows.reduce((sum, r) => sum + r.n * r.entry.price, 0);
+      const offer = plan.rows.reduce((sum, r) => sum + r.n * r.unit, 0);
       const count = plan.rows.reduce((sum, r) => sum + r.n, 0);
       if (offer > ATM_MAX - await this.coins(s, user)) throw new UserError(`That sale pays ${offer} coins, more than your ATM can hold. Sell fewer with amount.`);
       const what = (rows) => rows.map((r) => `${r.n} x ${r.label}`).join(', ');
       const text = plan.rows.length === 1
         ? `**${what(plan.rows)}** for **${offer} coins**`
-        : `${plan.rows.map((r) => `${r.n} x ${r.label} at ${r.entry.price}: ${r.n * r.entry.price}`).join('\n')}\n\nTotal **${offer} coins**`;
-      if (!(await ctx.confirm('Sell these?', `${text}, paid to your ATM. The items are gone once you confirm.${skipped}`, { label: 'Sell', danger: false }))) return null;
+        : `${plan.rows.map((r) => `${r.n} x ${r.label} at ${r.unit}: ${r.n * r.unit}`).join('\n')}\n\nTotal **${offer} coins**`;
+      const bonus = rate.sellBy && rate.sell !== 100 ? ` ${rate.sellBy} price.` : '';
+      if (!(await ctx.confirm('Sell these?', `${text}, paid to your ATM.${bonus} The items are gone once you confirm.${skipped}`, { label: 'Sell', danger: false }))) return null;
       const row = this.open(s, { kind: 'sell', player: user.username, item: plan.rows.map((r) => r.label).join(', '), amount: count, coins: offer, state: 'taking items' });
       const sold = [];
       let pay = 0;
@@ -339,7 +431,7 @@ class Economy {
         }
         if (done.n > 0) {
           sold.push({ ...r, n: done.n });
-          pay += done.n * r.entry.price;
+          pay += done.n * r.unit;
         }
       }
       if (sold.length === 0) {

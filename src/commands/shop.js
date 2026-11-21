@@ -34,7 +34,8 @@ function priced(x) {
 
 function done(ctx, r) {
   const lines = [`You bought **${r.delivered} x ${r.name}** for **${r.spent} coins**. You have ${r.left} left.`];
-  lines.push(r.role ? 'The role is yours now.' : 'It is waiting in your mailbox.');
+  if (r.rate && r.rate.buyBy && r.rate.buy !== 100) lines.push(`${r.rate.buyBy} price: ${r.rate.buy}% of the list price.`);
+  lines.push(r.role ? 'The role is yours now.' : `It is waiting in your mailbox${r.pouches ? `, in ${r.pouches === 1 ? 'a pouch' : `${r.pouches} pouches`}` : ''}.`);
   if (r.delivered < r.amount) lines.push(`Only ${r.delivered} of ${r.amount} could be sent, the rest was refunded. ${r.problem || ''}`);
   return ctx.ok('Bought', lines.join('\n'));
 }
@@ -71,7 +72,11 @@ module.exports = {
     .addSubcommand((s) => product(s.setName('remove').setDescription('Take an item off sale')))
     .addSubcommand((s) => addInt(s.setName('atmdistance').setDescription('Block buying, selling and withdrawing near an ATM (default 15, 0 turns it off)'), 'meters', 'Meters around an ATM', { min: 0, max: 200 }))
     .addSubcommand((s) => s.setName('pending').setDescription('Purchases and sales that did not finish'))
-    .addSubcommand((s) => addInt(s.setName('settle').setDescription('Clear a row of /shop pending once you fixed it by hand'), 'row', 'Row number', { min: 1 })),
+    .addSubcommand((s) => addInt(s.setName('settle').setDescription('Clear a row of /shop pending once you fixed it by hand'), 'row', 'Row number', { min: 1 }))
+    .addSubcommand((s) => addBool(addInt(addInt(addName(s.setName('rate').setDescription('Buy and sell prices for a job role, in percent of the normal price')
+      .addRoleOption((o) => o.setName('role').setDescription('Discord role (the player must be linked)').setRequired(false)), 'gamerole', 'Or a role from the Server launcher, like miner', { required: false, max: 40 }),
+    'buy', 'Percent paid when buying, like 90 for 10% off', { required: false, min: 1, max: 1000 }), 'sell', 'Percent paid out when selling, like 120', { required: false, min: 0, max: 1000 }), 'remove', 'Remove this role price', { required: false }))
+    .addSubcommand((s) => s.setName('rates').setDescription('Every job role price')),
   access: { list: 'everyone', menu: 'everyone', buy: 'everyone', '*': 'admin' },
   public: ['list'],
 
@@ -127,6 +132,34 @@ module.exports = {
       eco.saveShop(s);
       ctx.note(`${doc.atmDistance} m`);
       return ctx.ok('ATM rule', doc.atmDistance ? `Coins and items cannot move while the player is within ${doc.atmDistance} m of an ATM.` : 'Off.');
+    }
+    if (ctx.sub === 'rate') {
+      const role = ctx.role('role');
+      const game = ctx.opt('gamerole') ? String(ctx.opt('gamerole')).trim().toLowerCase() : null;
+      if (Boolean(role) === Boolean(game)) throw new UserError('Pick a Discord role or a game role, one of them.');
+      if (game && !/^[a-z0-9 _-]{1,40}$/.test(game)) throw new UserError('Game role names use letters, numbers, spaces, - and _.');
+      const key = role ? `d:${role.id}` : `g:${game}`;
+      const label = role ? role.name : game;
+      const rates = eco.rates(s);
+      if (ctx.opt('remove')) {
+        const had = Boolean(own(rates, key));
+        delete rates[key];
+        eco.saveShop(s);
+        ctx.note(`${label} removed`);
+        return had ? ctx.ok('Role price removed', label) : ctx.warn('No role price', `${label} had none.`);
+      }
+      const buy = ctx.opt('buy');
+      const sell = ctx.opt('sell');
+      if (buy == null && sell == null) throw new UserError('Set buy, sell or both. 100 is the normal price.');
+      const was = own(rates, key) || {};
+      rates[key] = { name: label, buy: buy ?? was.buy ?? null, sell: sell ?? was.sell ?? null };
+      eco.saveShop(s);
+      ctx.note(`${label} buy ${rates[key].buy ?? 100} sell ${rates[key].sell ?? 100}`);
+      return ctx.ok('Role price saved', `${label}: buys at ${rates[key].buy ?? 100}%, sells at ${rates[key].sell ?? 100}%.\nA player with several roles gets the best buy price and the best sell price among them. Selling never pays more than that player would pay to buy the same item.`);
+    }
+    if (ctx.sub === 'rates') {
+      const rows = Object.entries(eco.rates(s)).map(([k, r]) => `**${r.name}** (${k.startsWith('d:') ? 'Discord' : 'game'}): buys at ${r.buy ?? 100}%, sells at ${r.sell ?? 100}%`);
+      return ctx.info('Job role prices', rows.join('\n') || 'None yet. Add one with /shop rate.');
     }
     if (ctx.sub === 'pending') {
       const rows = eco.ledger(s).pending;

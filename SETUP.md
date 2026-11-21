@@ -133,7 +133,7 @@ start the server. There is no folder to rename and no `start.bat` to run.
 
 1. Put `BotCore.Server.dll` in the server's `Mods` folder.
 2. Unzip the bot into the server's `UserData` folder (next to `Mods`). Any folder name works,
-   including the `att-admin-bot-2.2.0` a GitHub download unpacks as, and the extra folder inside it
+   including the `att-admin-bot-2.3.0` a GitHub download unpacks as, and the extra folder inside it
    that some unzip tools add.
 3. Fill in `.env` there (step 4).
 4. Start the server. On the first start BotCore installs what the bot needs in the background. That
@@ -190,17 +190,22 @@ computer, connect the two over a VPN (Tailscale, WireGuard) or an SSH tunnel, th
 
 ## Optional: BotCore
 
-For `/atm`, `/mail`, `/shop`, `/sell`, `/balance` and `/withdraw`, put `BotCore.Server.dll` (1.5.0 or
+For `/atm`, `/mail`, `/shop`, `/sell`, `/balance` and `/withdraw`, put `BotCore.Server.dll` (1.6.0 or
 newer) in the game server's `Mods` folder and restart the server. Delete an older `BotCore.dll` there:
 BotCore.Server replaces it. See [botcore/README.md](botcore/README.md).
 
 ## Optional: the bot tablet in game
 
 Players who put `BotCore.Client.dll` in their own game's `Mods` folder get a Bot Menu bubble on the
-quick access wheel of your server. It opens Plots, Shop, Sell and Admin on their tablet, each page
-only for the roles you allow in `UserData\BotCore\tablet.txt` on the server. Shop and Sell are open
-to everyone at first, Plots and Admin to the roles `owner`, `admin` and `moderator` from the Server
-launcher's Edit Roles. Share the client DLL with your players, for example in a Discord channel.
+quick access wheel of your server. It opens the bot on their tablet, each page only for the roles you
+allow in `UserData\BotCore\tablet.txt` on the server. Shop, Sell, Me, Plots and Actions are open to
+everyone at first, Players and Cleanup to the roles `owner`, `admin` and `moderator` from the Server
+launcher's Edit Roles, Server and Commands to `owner` and `admin`, and Spawn to `owner`. Share the
+client DLL with your players, for example in a Discord channel. Client 1.6 needs BotCore.Server 1.6
+on the server, and the other way round; each tells the player when the other side is too old.
+
+If you used the tablet with 2.2, your `tablet.txt` keeps its old lines and the new pages use these
+defaults. Its old `admin` line now means Players.
 
 ## Troubleshooting
 
@@ -212,7 +217,7 @@ launcher's Edit Roles. Share the client DLL with your players, for example in a 
 | `the console refused the token` | The token is old. The Server launcher writes a new one each time it starts the server: copy the current one, or leave `ATT_CONSOLE_TOKEN` empty so the bot reads the file. |
 | `cannot reach the console yet` | The game server is not running, or the host or port is wrong. |
 | No slash commands in Discord | `DISCORD_GUILD_ID` is wrong, or the bot was added without `applications.commands`. Add it again with the link from step 2. |
-| `/shop` or `/sell` say the server answered in a way the bot does not understand | Update BotCore.Server to 1.5.0 or newer. |
+| `/shop` or `/sell` say the server answered in a way the bot does not understand | Update BotCore.Server to 1.6.0 or newer. |
 | No Bot Menu bubble in game | The player needs `BotCore.Client.dll`, the server needs `BotCore.Server.dll`, and the player's roles must open at least one page in `tablet.txt`. `botcore tablet status` on the console lists who has the tablet and which pages. |
 | The Bot Menu bubble is grey | The bot is not connected to the game server. |
 | Server log says an old BotCore.dll is next to BotCore.Server.dll | Delete `Mods\BotCore.dll` and restart the server. |

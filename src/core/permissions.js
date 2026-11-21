@@ -42,6 +42,7 @@ class Permissions {
 
   allows(interaction, key, level, { baseCovers = true } = {}) {
     const { member, guild, user, guildId } = interaction;
+    if (interaction.gameLevel && LEVELS[interaction.gameLevel] >= (LEVELS[level] ?? LEVELS.admin)) return true;
     if (!guildId) return false;
     if (this.isOwner(member, guild, user.id)) return true;
     if (this.granted(guildId, member, user.id, key)) return true;

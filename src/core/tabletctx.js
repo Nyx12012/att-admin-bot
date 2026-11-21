@@ -21,7 +21,7 @@ function textOf(payload) {
 }
 
 class TabletContext extends Context {
-  constructor(bot, server, actor, command, sub, values, confirmer) {
+  constructor(bot, server, actor, command, sub, values, confirmer, who = {}) {
     const options = {
       get: (name) => (values[name] == null ? null : { name, value: values[name] }),
       getSubcommand: () => sub,
@@ -30,8 +30,10 @@ class TabletContext extends Context {
     const interaction = {
       id: `tablet-${Date.now()}`,
       guildId: server.guildId,
-      user: { id: `game:${actor}`, tag: `${actor} (in game)` },
-      member: null,
+      user: { id: who.discordId || `game:${actor}`, tag: `${actor} (in game)` },
+      member: who.member || null,
+      guild: who.guild || null,
+      gameLevel: who.level || null,
       options,
       deferred: false,
       replied: false,
@@ -39,6 +41,7 @@ class TabletContext extends Context {
     super(bot, interaction, command);
     this.server = server;
     this.actor = actor;
+    this.gameRoles = who.roles || null;
     this.confirmer = confirmer || (async () => false);
     this.out = null;
     this.kind = null;

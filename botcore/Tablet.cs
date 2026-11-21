@@ -27,6 +27,9 @@ namespace BotCore
         [JsonProperty("pages")]
         public string[] Pages { get; set; }
 
+        [JsonProperty("roles")]
+        public string[] Roles { get; set; }
+
         [JsonProperty("ask")]
         public string Ask { get; set; }
     }
@@ -120,15 +123,18 @@ namespace BotCore
 
     public static class TabletHost
     {
-        static readonly string[] Order = new string[] { "plots", "shop", "sell", "admin" };
+        static readonly string[] Order = new string[] { "shop", "sell", "me", "plots", "actions", "players", "spawn", "cleanup", "server", "commands" };
+        const int RouteMax = 400;
+        const string UpdateClient = "Update BotCore.Client to 1.6: github.com/Nyx12012/att-admin-bot/releases";
         const float TimeoutSeconds = 30f;
         const float SweepSeconds = 2f;
         const float PingSeconds = 5f;
-        static readonly TabletAsk Ping = new TabletAsk { Id = -1, Player = "", Pages = new string[0], Ask = "" };
+        static readonly TabletAsk Ping = new TabletAsk { Id = -1, Player = "", Pages = new string[0], Roles = new string[0], Ask = "" };
 
         sealed class Client
         {
             public bool Hello;
+            public bool Routes;
             public string Sent;
             public int Waiting;
             public float Tokens = 5f;
@@ -209,7 +215,11 @@ namespace BotCore
         {
             return "# Who sees each page of the in-game bot tablet. Use everyone, nobody, or role names from the\r\n"
                 + "# Server launcher's Edit Roles, split by commas. Saved changes apply within a few seconds.\r\n"
-                + "shop = everyone\r\nsell = everyone\r\nplots = owner, admin, moderator\r\nadmin = owner, admin, moderator\r\n";
+                + "# Players, spawn, cleanup and server: what is on them works for anyone who sees them.\r\n"
+                + "# Commands: every bot command, with the same rules as on Discord.\r\n"
+                + "shop = everyone\r\nsell = everyone\r\nme = everyone\r\nplots = everyone\r\nactions = everyone\r\n"
+                + "players = owner, admin, moderator\r\nspawn = owner\r\ncleanup = owner, admin, moderator\r\n"
+                + "server = owner, admin\r\ncommands = owner, admin\r\n";
         }
 
         static Dictionary<string, List<string>> Defaults()
@@ -217,8 +227,14 @@ namespace BotCore
             Dictionary<string, List<string>> d = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             d["shop"] = new List<string> { "everyone" };
             d["sell"] = new List<string> { "everyone" };
-            d["plots"] = new List<string> { "owner", "admin", "moderator" };
-            d["admin"] = new List<string> { "owner", "admin", "moderator" };
+            d["me"] = new List<string> { "everyone" };
+            d["plots"] = new List<string> { "everyone" };
+            d["actions"] = new List<string> { "everyone" };
+            d["players"] = new List<string> { "owner", "admin", "moderator" };
+            d["spawn"] = new List<string> { "owner" };
+            d["cleanup"] = new List<string> { "owner", "admin", "moderator" };
+            d["server"] = new List<string> { "owner", "admin" };
+            d["commands"] = new List<string> { "owner", "admin" };
             return d;
         }
 
@@ -232,6 +248,7 @@ namespace BotCore
                 int eq = line.IndexOf('=');
                 if (eq <= 0) continue;
                 string page = line.Substring(0, eq).Trim().ToLowerInvariant();
+                if (page == "admin") page = "players";
                 if (Array.IndexOf(Order, page) < 0) continue;
                 List<string> roles = new List<string>();
                 foreach (string part in line.Substring(eq + 1).Split(','))
@@ -415,33 +432,40 @@ namespace BotCore
             if (m.Kind == TabletWire.Hello)
             {
                 cl.Hello = true;
+                cl.Routes = Newer(m.Payload, 1, 6);
                 SendMenu(m.Conn, cl, true);
                 return;
             }
             if (m.Kind != TabletWire.Ask || !cl.Hello) return;
             int clientId = -1;
-            string page = null;
+            string route = null;
             try
             {
                 JObject o = JObject.Parse(m.Payload);
                 clientId = (int)o["id"];
-                page = (string)o["page"];
+                route = (string)o["go"];
             }
             catch (Exception) { }
             if (clientId < 0) return;
+            if (!cl.Routes) { Refuse(m.Conn, clientId, UpdateClient); return; }
+            if (route == null || route.Length > RouteMax) { Refuse(m.Conn, clientId, "That button is too long for the tablet."); return; }
+            int cut = route.IndexOfAny(new char[] { '/', '?' });
+            string page = (cut < 0 ? route : route.Substring(0, cut)).ToLowerInvariant();
             cl.Tokens = Math.Min(5f, cl.Tokens + (now - cl.TokensAt) * 2f);
             cl.TokensAt = now;
             if (cl.Tokens < 1f) { Refuse(m.Conn, clientId, "Slow down a little."); return; }
             cl.Tokens -= 1f;
             if (cl.Waiting > 0 && Waiting.ContainsKey(cl.Waiting)) { Refuse(m.Conn, clientId, "Wait for the last answer first."); return; }
             string name = NameOf(m.Conn);
-            List<string> pages = PagesFor(RolesOf(m.Conn), _rules);
-            if (string.IsNullOrEmpty(name) || page == null || !pages.Contains(page)) { Refuse(m.Conn, clientId, "Your role cannot use that page on this server."); return; }
+            List<string> roles = RolesOf(m.Conn);
+            List<string> pages = PagesFor(roles, _rules);
+            bool open = page == "home" ? pages.Count > 0 : pages.Contains(page);
+            if (string.IsNullOrEmpty(name) || !open) { Refuse(m.Conn, clientId, "Your role cannot use that page on this server."); return; }
             if (_event == null || !_event.HasListeners) { Refuse(m.Conn, clientId, "The bot is not connected right now."); return; }
             int id = _nextId++;
             Waiting[id] = new Pending { Conn = m.Conn, ClientId = clientId, Until = now + TimeoutSeconds };
             cl.Waiting = id;
-            TabletAsk ask = new TabletAsk { Id = id, Player = name, Pages = pages.ToArray(), Ask = m.Payload };
+            TabletAsk ask = new TabletAsk { Id = id, Player = name, Pages = pages.ToArray(), Roles = roles.ToArray(), Ask = m.Payload };
             _event.Invoke(delegate { return ask; });
         }
 
@@ -497,12 +521,34 @@ namespace BotCore
         static void SendMenu(Connection c, Client cl, bool force)
         {
             JObject o = new JObject();
+            List<string> pages = PagesFor(RolesOf(c), _rules);
+            if (cl.Routes) o["v"] = 2;
             o["name"] = _botName ?? "";
             o["bot"] = _event != null && _event.HasListeners;
-            o["pages"] = new JArray(PagesFor(RolesOf(c), _rules).ToArray());
+            o["pages"] = cl.Routes ? new JArray(pages.ToArray()) : new JArray(pages.Count > 0 ? new string[] { "shop" } : new string[0]);
             string text = o.ToString(Formatting.None);
             if (!force && text == cl.Sent) return;
             if (TabletWire.Send(c, TabletWire.Menu, text)) cl.Sent = text;
+        }
+
+        public static bool Newer(string version, int major, int minor)
+        {
+            if (string.IsNullOrEmpty(version)) return false;
+            string[] parts = version.Trim().Split('.');
+            int a, b;
+            if (parts.Length < 2 || !int.TryParse(parts[0], out a) || !int.TryParse(parts[1], out b)) return false;
+            return a > major || (a == major && b >= minor);
+        }
+
+        public static string RolesText(Player p)
+        {
+            Connection c = null;
+            try { c = p != null ? p.ConnectionToRemotePlayer : null; }
+            catch (Exception) { }
+            if (c == null) return "error not online";
+            if (_getRoles == null) return "error no roles api";
+            List<string> roles = RolesOf(c);
+            return "roles " + (roles.Count > 0 ? string.Join(",", roles.ToArray()) : "-");
         }
 
         public static string BotHello(string data)
@@ -566,6 +612,12 @@ namespace BotCore
             public static string Status()
             {
                 return TabletHost.Status();
+            }
+
+            [Command("roles", "The TavernLib roles of an online player")]
+            public static string Roles(Player player)
+            {
+                return TabletHost.RolesText(player);
             }
         }
     }

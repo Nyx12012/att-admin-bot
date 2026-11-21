@@ -135,4 +135,4 @@ class Registry {
   }
 }
 
-module.exports = { Registry, loadCommands, keyOf };
+module.exports = { Registry, loadCommands, keyOf, levelOf, allowed };

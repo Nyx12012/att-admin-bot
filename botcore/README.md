@@ -34,20 +34,25 @@ downloading off.
 1. Stop the game server.
 2. Put `BotCore.Server.dll` in the server's `Mods` folder. If an older `BotCore.dll` is there,
    delete it: BotCore.Server replaces it, and stays off while the old one is still there.
-3. Start the server. Its log shows `BotCore 1.5.0: 13 commands ready`, `The in-game bot tablet is
+3. Start the server. Its log shows `BotCore 1.6.0: 16 commands ready`, `The in-game bot tablet is
    on`, and `Started the Discord bot` when a copy of the bot is in `UserData`.
 
 ## BotCore.Client
 
 Players put `BotCore.Client.dll` in their game's `Mods` folder (PC, MelonLoader, the same place as
 other client mods). On a server with BotCore.Server, a **Bot Menu** bubble shows on the quick access
-wheel. It opens the tablet on the bot's menu:
+wheel. It opens the tablet on the bot's menu. The bot builds every page, so a newer bot brings new
+buttons without a new client.
 
-- **Plots**: every plot, its details, and Go there.
-- **Shop**: what the bot sells and your ATM coins. Pick an item, then Buy 1, 5 or 10. It
-  arrives in your mailbox.
+- **Shop**: what the bot sells, your price and your ATM coins. Pick an item, then Buy 1, 5 or 10.
+  It arrives in your mailbox, stacks in pouches.
 - **Sell**: what the bot buys. Pick one to see the offer for what you carry, then Sell.
-- **Admin**: Kick, Bring, TP to and Ban, then pick a player.
+- **Me**: your coins, Withdraw, a code to link Discord, your stats, where you are.
+- **Plots**: your plots for players; list, create, edit and delete for staff.
+- **Actions**: buttons the server owner made for your role.
+- **Players**, **Cleanup**, **Server**, **Spawn**: staff tools.
+- **Commands**: every bot command as a form. Options are picked from lists: online players,
+  items (in your hands, recent, shop, sell list, A to Z), numbers, choices.
 
 Buttons that do something you cannot undo need two taps. Home goes back to the bot menu. Tap the
 bubble again to put the tablet away.
@@ -64,16 +69,27 @@ first start:
 ```
 shop = everyone
 sell = everyone
-plots = owner, admin, moderator
-admin = owner, admin, moderator
+me = everyone
+plots = everyone
+actions = everyone
+players = owner, admin, moderator
+spawn = owner
+cleanup = owner, admin, moderator
+server = owner, admin
+commands = owner, admin
 ```
+
+What is on Players, Spawn, Cleanup and Server works for anyone who sees the page. Commands uses the
+same rules as Discord: the role `owner` counts as the bot owner, `admin` as a Discord admin, and a
+player who used `/link` also brings what their Discord roles were granted. An old `admin = ...` line
+from 2.2 is read as `players`.
 
 Use `everyone`, `nobody`, or role names from the Server launcher's Edit Roles (TavernLib's
 `users.json`), split by commas. Saved changes and role changes reach players within a few seconds,
 no restart needed. Roles need a TavernLib with the roles API (1.5.3 or newer). Without it only pages
 set to `everyone` show.
 
-The tablet needs the bot (2.2.0 or newer) connected to the server. Purchases, sales, kicks, bans and
+The tablet needs the bot (2.3.0 or newer) connected to the server. Purchases, sales, kicks, bans and
 teleports go through the same code as the Discord commands, with the same rules and limits. Admin
 actions are written to the bot's audit log as `<name> (in game)`.
 
@@ -90,7 +106,12 @@ actions are written to the bot's audit log as `<name> (in game)`.
   the launch tokens, so keep it private like `startServer.bat`
 - `botcore ground <x> <z> <from height>`: the height of the ground under a point, answers
   `ground <y>` or `none`
+- `botcore stack <item>`: how many of an item the game puts in one pouch, answers `stack <n>`, or
+  `single` when it does not stack
+- `botcore sweep near <player> <meters> [count|run]`: loose ground items around a player, counted
+  or removed. Held, docked, mounted and protected items never count, nor a tablet someone summoned
 - `botcore tablet status`: players with the tablet, their roles and the pages they may open
+- `botcore tablet roles <player>`: the TavernLib roles of an online player, for job role prices
 - `botcore tablet hello` and `botcore tablet answer`: the bot's side of the tablet
 - `botcore heal`, `botcore stats`, `botcore sweep count|run`: older helpers. The bot does not use
   them; it uses TavernLib's stat commands and the game's own `wacky destroy-free` instead.

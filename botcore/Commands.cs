@@ -125,6 +125,17 @@ namespace BotCore
             return LaunchFile ?? "none";
         }
 
+        [Command("stack", "How many of one prefab the game puts in one pouch, or single when it does not stack")]
+        public static string Stack(NetworkPrefab prefab)
+        {
+            if (prefab == null) return "error no prefab";
+            Pickup p = prefab.GetComponentInChildren<Pickup>(true);
+            Item item = p != null ? p.Item : null;
+            if (item == null) return "single not an item";
+            if (!item.IsStackable) return "single";
+            return "stack " + Math.Max(1, item.DockedStackSize).ToString(CultureInfo.InvariantCulture);
+        }
+
         [Command("carried", "Count carried items of one prefab, split by material")]
         public static string Carried(Player player, int hash, string where = "all")
         {
@@ -312,6 +323,40 @@ namespace BotCore
                 return Report("SWEPT " + destroyed + " /", hits, filter, tail);
             }
 
+            [Command("near", "Loose ground items within a radius of a player. Mode count or run")]
+            public static string Near(Player player, float radius, string mode = "count")
+            {
+                if (player == null) return "error no player";
+                PlayerController pc = player.PlayerController;
+                if (pc == null) return "error not spawned";
+                float r = Mathf.Clamp(radius, 1f, 100f);
+                Vector3 at = pc.transform.position;
+                List<Hit> hits = new List<Hit>();
+                foreach (Hit hit in FindLoose(null))
+                {
+                    try
+                    {
+                        if (hit.Entity != null && (hit.Entity.transform.position - at).sqrMagnitude <= r * r) hits.Add(hit);
+                    }
+                    catch (Exception) { }
+                }
+                if (mode != "run") return Report("NEAR", hits, "within " + r.ToString("0", CultureInfo.InvariantCulture) + " m", null);
+                int destroyed = 0;
+                foreach (Hit hit in hits)
+                {
+                    try
+                    {
+                        NetworkEntity e = hit.Entity;
+                        if (e == null || e.IsBeingDestroyed) continue;
+                        if (e.Spawner != null) e.Spawner.Destroy(e);
+                        else e.SceneDestroy();
+                        destroyed++;
+                    }
+                    catch (Exception) { }
+                }
+                return Report("CLEARED " + destroyed + " /", hits, "within " + r.ToString("0", CultureInfo.InvariantCulture) + " m", null);
+            }
+
             sealed class Hit
             {
                 public NetworkEntity Entity;
@@ -340,10 +385,23 @@ namespace BotCore
                     if (IsProtected(norm, protect)) continue;
                     Hit hit = new Hit();
                     hit.Entity = e;
-                    hit.PrefabName = name;
+                    hit.PrefabName = CleanName(name);
                     hits.Add(hit);
                 }
                 return hits;
+            }
+
+            static string CleanName(string n)
+            {
+                if (string.IsNullOrEmpty(n)) return "?";
+                int dash = n.IndexOf(" - ", StringComparison.Ordinal);
+                if (dash > 0)
+                {
+                    bool digits = true;
+                    for (int i = 0; i < dash; i++) if (!char.IsDigit(n[i])) digits = false;
+                    if (digits) n = n.Substring(dash + 3);
+                }
+                return n.Replace("(Clone)", "").Trim();
             }
 
             static bool IsLoose(NetworkEntity e)
@@ -353,6 +411,7 @@ namespace BotCore
                 if (p == null) return false;
                 if (p.IsDocked || p.IsInteractedWith) return false;
                 if (p.IsEnvironmental || p.IsChunkingParentStatic) return false;
+                if (e.GetComponentInChildren<ActionItem>(true) != null) return false;
                 if (IsMounted(e)) return false;
                 return true;
             }

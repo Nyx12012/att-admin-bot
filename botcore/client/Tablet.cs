@@ -107,6 +107,24 @@ namespace BotCore.Client
             Push(p);
         }
 
+        internal static void Up(Page p)
+        {
+            if (stack.Count > 2) stack.RemoveAt(stack.Count - 1);
+            Replace(p);
+        }
+
+        internal static int Depth
+        {
+            get { return stack.Count; }
+        }
+
+        internal static int PerFor(int depth)
+        {
+            Ui u = session ?? (uis.Count > 0 ? uis[0] : null);
+            if (u == null) return 3;
+            return Math.Max(1, u.RowCount - (u.BackIsRow && depth > 2 ? 1 : 0));
+        }
+
         internal static void Back()
         {
             backQueued = true;
@@ -235,7 +253,9 @@ namespace BotCore.Client
         static void ResetToMenu()
         {
             stack.Clear();
-            stack.Add(BotPages.Menu());
+            Page home = BotPages.Menu();
+            stack.Add(home);
+            if (home.OnOpen != null) home.OnOpen();
             pageAt = 0;
             pageStep = 0;
             confirmId = null;
@@ -577,7 +597,6 @@ namespace BotCore.Client
             confirmId = null;
             try
             {
-                if (r.Opens != null) Push(r.Opens());
                 if (r.Run != null) r.Run();
             }
             catch (Exception e)
@@ -647,6 +666,11 @@ namespace BotCore.Client
                 pageAt = Math.Min(pages - 1, rm.At / per);
                 offset = 0;
                 status = rm.Loading ? "Asking the bot" : rm.Status;
+                if (page.Status != null)
+                {
+                    try { status = page.Status(); }
+                    catch (Exception) { }
+                }
             }
             else
             {
