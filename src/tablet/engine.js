@@ -268,6 +268,14 @@ class Tablet {
     return env.server.players().map((p) => p.username).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
 
+  async gameRoles(env) {
+    const found = new Set((env.roles || []).filter((r) => r && r !== 'everyone'));
+    for (const key of Object.keys(this.bot.economy.rates(env.server))) if (key.startsWith('g:')) found.add(key.slice(2).split('|')[0]);
+    for (const a of Object.values(this.actions(env.server))) for (const r of a.gameRoles || []) if (r !== 'everyone') found.add(r);
+    for (const name of this.online(env).slice(0, 10)) for (const r of await this.bot.economy.gameRoles(env.server, name)) found.add(r);
+    return [...found].sort();
+  }
+
   async chunkOf(env, name) {
     const p = await env.server.position(name).catch(() => null);
     return p && /^\d+-\d+$/.test(p.chunk || '') ? p.chunk : null;

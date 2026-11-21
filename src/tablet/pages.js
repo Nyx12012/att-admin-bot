@@ -39,6 +39,12 @@ function result(r, title) {
   return { ok: r.ok, title: r.title || title, text: r.text, rows: [] };
 }
 
+function manage(t, env, name, label) {
+  const leaf = t.forms.leaf(name, 'add');
+  if (!env.pages.includes('commands') || !leaf || !t.forms.visible(env, 'commands', leaf)) return [];
+  return [row(link('commands', ['c'], { c: name }), label, 'add, remove and more')];
+}
+
 async function shop(t, env, verb, q) {
   const eco = t.bot.economy;
   const doc = eco.shop(env.server);
@@ -48,17 +54,19 @@ async function shop(t, env, verb, q) {
     const x = own(doc.items, String(q.k || '').toLowerCase());
     if (!x || x.role) throw new UserError('That is not for sale any more.');
     const unit = eco.buyUnit(x, rate);
+    const p = eco.priceFor(rate, x.hash);
+    const deal = p.buyBy && p.buy !== 100 ? `${p.buyBy} price, ${p.buy}%` : '';
     if (verb === 'b') {
       const amount = Math.min(25, Math.max(1, Number.parseInt(q.a, 10) || 1));
       return result(await t.run(env, 'shop', 'shop', 'buy', { product: x.key, amount }), 'Bought');
     }
     const rows = BUY.map((n) => row(link('shop', ['b'], { k: x.key, a: n }), `Buy ${n}`, `${n * unit} coins, sent to your mailbox`, { c: 1 }));
     if (x.daily) rows.push(...lines(`At most ${x.daily} a day.`));
-    if (off) rows.push(...lines(off));
+    if (deal) rows.push(...lines(deal));
     return page(x.name, rows, { status: `${unit} coins each. Tap twice to buy.`, r: link('shop', ['i'], { k: x.key }) });
   }
   const all = Object.values(doc.items).filter((x) => !x.role).sort((a, b) => byName(a.category || '', b.category || '') || byName(a.name, b.name));
-  const rows = all.map((x) => row(link('shop', ['i'], { k: x.key }), x.name, `${eco.buyUnit(x, rate)} coins${x.daily ? `, ${x.daily} a day` : ''}`));
+  const rows = manage(t, env, 'shop', 'Edit the shop').concat(all.map((x) => row(link('shop', ['i'], { k: x.key }), x.name, `${eco.buyUnit(x, rate)} coins${x.daily ? `, ${x.daily} a day` : ''}`)));
   const have = all.length ? await coins(t, env) : null;
   const status = !all.length ? 'Nothing for sale yet.' : have != null ? `You have ${have} coins${off ? `, ${off}` : ''}` : off;
   return page('Shop', rows, { status, r: 'shop' });
@@ -95,7 +103,7 @@ async function sell(t, env, verb, q) {
     .concat(entries.map(([k, x]) => row(link('sell', ['q'], { k }), x.name, `${eco.sellUnit(env.server, x, rate)} coins each${x.daily ? `, ${x.daily} a day` : ''}`)));
   const bonus = rate.sellBy && rate.sell !== 100 ? ` ${rate.sellBy} price, ${rate.sell}%.` : '';
   const status = doc.paused ? 'Buying is paused right now.' : rows.length ? `Tap one to see the offer.${bonus}` : 'The bot buys nothing yet.';
-  return page('Sell', rows, { status, r: 'sell' });
+  return page('Sell', manage(t, env, 'sell', 'Edit the sell list').concat(rows), { status, r: 'sell' });
 }
 
 async function me(t, env, verb, q) {

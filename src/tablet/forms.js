@@ -8,6 +8,7 @@ const HIDDEN = new Set(['help', 'setup', 'permissions', 'controlpanel', 'despawn
 const REASONS = ['Breaking the rules', 'Griefing', 'Cheating', 'Spamming'];
 const MESSAGES = ['Please follow the server rules.', 'An admin is on the way to you.', 'The server restarts soon.', 'Please stop that.'];
 const NONE = '-';
+const CATEGORIES = ['Ore', 'Wood', 'Food', 'Tools', 'Weapons', 'Armor', 'Potions', 'Misc'];
 
 function kindOf(name, sub, o) {
   if (DISCORD.has(o.type)) return 'discord';
@@ -19,6 +20,8 @@ function kindOf(name, sub, o) {
   if (name === 'message' && o.name === 'text') return 'message';
   if (o.name === 'material') return 'material';
   if (o.name === 'chunk') return 'chunk';
+  if (o.name === 'gamerole') return 'gamerole';
+  if (name === 'shop' && o.name === 'category') return 'category';
   if (o.name === 'reason') return 'reason';
   if (name === 'plot' && sub === 'create' && o.name === 'name') return 'plotname';
   if (o.autocomplete) return 'auto';
@@ -123,7 +126,7 @@ class Forms {
     const sub = leaf.sub || NONE;
     const missing = leaf.options.filter((o) => o.required && vals[o.name] == null);
     const rows = [];
-    if (missing.length) rows.push({ k: '', t: `Pick ${missing.map((o) => o.name).join(', ')} first`, m: 'x' });
+    if (missing.length) rows.push({ k: '', t: 'Run', d: `pick ${missing.map((o) => o.name).join(' and ')} first`, m: 'x' });
     else rows.push(row(link(area, ['x', leaf.name, sub], vals), 'Run', leaf.options.filter((o) => vals[o.name] != null).map((o) => this.show(o, vals[o.name])).join(', '), { c: 1 }));
     const sorted = leaf.options.filter((o) => o.required).concat(leaf.options.filter((o) => !o.required));
     for (const o of sorted) {
@@ -168,6 +171,12 @@ class Forms {
       const mine = await this.t.chunkOf(env, env.player);
       if (mine) rows.push(pick(mine, `Where I stand (${mine})`));
       if (plot) for (const c of plot.chunks) if (c !== mine) rows.push(pick(c, c, `in ${plot.name}`));
+    } else if (o.kind === 'category') {
+      const used = Object.values(this.t.bot.economy.shop(env.server).items).map((x) => x.category).filter(Boolean);
+      rows = [...new Set(used.concat(CATEGORIES))].map((c) => pick(c, c));
+    } else if (o.kind === 'gamerole') {
+      rows = (await this.t.gameRoles(env)).map((r) => pick(r, r));
+      if (!rows.length) status = 'No game roles found. Give a player a role in the Server launcher first.';
     } else if (o.kind === 'plotname') {
       const owner = vals.player || env.player;
       const taken = this.t.bot.plots.doc(env.server);

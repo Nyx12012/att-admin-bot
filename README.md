@@ -63,8 +63,10 @@ shop price is refused so nobody can print coins. Nothing is bought, sold or with
 Bought and mailed stacks arrive in pouches, one per full stack, the way the game's own mail does it.
 
 **Job roles.** `/shop rate` gives a Discord role or a role from the Server launcher its own prices,
-in percent: a Miner could buy at 90% and sell at 120%. A player with several roles gets the best
-buy price and the best sell price among them. Selling never pays more than that player would pay
+in percent: a Miner could buy at 90% and sell at 120%. Pick an item to change only that item, for
+example a Lumberjack who sells wedges at 150% while everything else keeps its price. Run it once per
+item. A player with several roles gets the best buy price and the best sell price among the rates
+that match the item. Selling never pays more than that player would pay
 to buy the same item, so no role can print coins. Discord roles count once the player used `/link`.
 
 **The bot tablet in game (needs BotCore).** Players with the `BotCore.Client.dll` mod get a Bot Menu

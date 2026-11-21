@@ -73,7 +73,7 @@ class Economy {
   async rateOf(ctx, username) {
     const s = ctx.server;
     const rates = Object.entries(this.rates(s));
-    const none = { buy: 100, sell: 100, buyBy: null, sellBy: null };
+    const none = { buy: 100, sell: 100, buyBy: null, sellBy: null, items: [] };
     if (rates.length === 0) return none;
     let member = ctx.i && ctx.i.member && ctx.i.member.roles ? ctx.i.member : null;
     if (!member) {
@@ -82,10 +82,31 @@ class Economy {
     }
     const discord = member && member.roles && member.roles.cache ? new Set(member.roles.cache.keys()) : new Set();
     const game = new Set(ctx.gameRoles || (rates.some(([k]) => k.startsWith('g:')) ? await this.gameRoles(s, username) : []));
-    const out = { ...none };
+    const out = { ...none, items: [] };
     for (const [key, r] of rates) {
-      const hit = key.startsWith('d:') ? discord.has(key.slice(2)) : game.has(key.slice(2));
+      const who = key.split('|')[0];
+      const hit = who.startsWith('d:') ? discord.has(who.slice(2)) : game.has(who.slice(2));
       if (!hit) continue;
+      if (r.hash != null) {
+        out.items.push(r);
+        continue;
+      }
+      if (r.buy != null && r.buy < out.buy) {
+        out.buy = r.buy;
+        out.buyBy = r.name;
+      }
+      if (r.sell != null && r.sell > out.sell) {
+        out.sell = r.sell;
+        out.sellBy = r.name;
+      }
+    }
+    return out;
+  }
+
+  priceFor(rate, hash) {
+    const out = { buy: rate.buy, sell: rate.sell, buyBy: rate.buyBy, sellBy: rate.sellBy };
+    for (const r of rate.items || []) {
+      if (hash == null || Number(r.hash) !== Number(hash)) continue;
       if (r.buy != null && r.buy < out.buy) {
         out.buy = r.buy;
         out.buyBy = r.name;
@@ -99,11 +120,11 @@ class Economy {
   }
 
   buyUnit(item, rate) {
-    return item.price > 0 ? Math.max(1, Math.ceil((item.price * rate.buy) / 100)) : 0;
+    return item.price > 0 ? Math.max(1, Math.ceil((item.price * this.priceFor(rate, item.hash).buy) / 100)) : 0;
   }
 
   sellUnit(s, entry, rate) {
-    let unit = Math.floor((entry.price * rate.sell) / 100);
+    let unit = Math.floor((entry.price * this.priceFor(rate, entry.hash).sell) / 100);
     for (const x of Object.values(this.shop(s).items)) {
       if (x.role || x.hash !== entry.hash) continue;
       if (entry.material && x.material && x.material !== entry.material) continue;
@@ -306,7 +327,7 @@ class Economy {
       if (delivered === 0) throw new UserError(`Nothing was delivered and your coins were returned. ${problem || ''}`.trim());
       ctx.note(`${delivered} x ${item.name} for ${delivered * unit} coins`);
       this.log(s, `**${user.username}** bought ${delivered} x ${item.name} for ${delivered * unit} coins, ${final} left.`);
-      return { delivered, amount, spent: delivered * unit, left: final, problem, pouches, unit, rate };
+      return { delivered, amount, spent: delivered * unit, left: final, problem, pouches, unit, rate: this.priceFor(rate, item.hash) };
     });
   }
 
@@ -416,7 +437,8 @@ class Economy {
       const text = plan.rows.length === 1
         ? `**${what(plan.rows)}** for **${offer} coins**`
         : `${plan.rows.map((r) => `${r.n} x ${r.label} at ${r.unit}: ${r.n * r.unit}`).join('\n')}\n\nTotal **${offer} coins**`;
-      const bonus = rate.sellBy && rate.sell !== 100 ? ` ${rate.sellBy} price.` : '';
+      const by = [...new Set(plan.rows.map((r) => this.priceFor(rate, r.entry.hash)).filter((p) => p.sellBy && p.sell !== 100).map((p) => p.sellBy))];
+      const bonus = by.length ? ` ${by.join(', ')} price.` : '';
       if (!(await ctx.confirm('Sell these?', `${text}, paid to your ATM.${bonus} The items are gone once you confirm.${skipped}`, { label: 'Sell', danger: false }))) return null;
       const row = this.open(s, { kind: 'sell', player: user.username, item: plan.rows.map((r) => r.label).join(', '), amount: count, coins: offer, state: 'taking items' });
       const sold = [];
