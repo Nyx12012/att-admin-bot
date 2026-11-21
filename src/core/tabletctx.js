@@ -1,23 +1,24 @@
 const { Context } = require('./context');
 const { UserError, isSafeName } = require('../game/text');
 
-function plain(text) {
+function plain(text, names = {}) {
   return String(text == null ? '' : text)
     .replace(/<t:(\d+)(?::[a-zA-Z])?>/g, (m, n) => `${new Date(Number(n) * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`)
-    .replace(/<@[!&]?\d+>/g, 'someone on Discord')
+    .replace(/<@!?(\d+)>/g, (m, id) => (names[id] ? `@${names[id]}` : 'someone on Discord'))
+    .replace(/<@&\d+>/g, 'a Discord role')
     .replace(/<#\d+>/g, 'a Discord channel')
     .replace(/\*\*|__|`/g, '')
     .replace(/\r/g, '')
     .trim();
 }
 
-function textOf(payload) {
-  if (typeof payload === 'string') return { title: '', text: plain(payload) };
+function textOf(payload, names = {}) {
+  if (typeof payload === 'string') return { title: '', text: plain(payload, names) };
   const e = payload && payload.embeds && payload.embeds[0];
   const d = e ? e.data || e : {};
-  const fields = (d.fields || []).map((f) => `${plain(f.name)}: ${plain(f.value)}`);
-  const body = plain(d.description || (payload && payload.content) || '');
-  return { title: plain(d.title || ''), text: [body, ...fields].filter(Boolean).join('\n') };
+  const fields = (d.fields || []).map((f) => `${plain(f.name, names)}: ${plain(f.value, names)}`);
+  const body = plain(d.description || (payload && payload.content) || '', names);
+  return { title: plain(d.title || '', names), text: [body, ...fields].filter(Boolean).join('\n') };
 }
 
 class TabletContext extends Context {
@@ -54,8 +55,24 @@ class TabletContext extends Context {
 
   requireLink() {}
 
+  async names(payload) {
+    const ids = [...new Set([...JSON.stringify(payload || '').matchAll(/<@!?(\d+)>/g)].map((m) => m[1]))].slice(0, 10);
+    const out = {};
+    const client = this.bot.client;
+    if (!client || !client.users) return out;
+    for (const id of ids) {
+      try {
+        const u = client.users.cache.get(id) || await client.users.fetch(id);
+        if (u) out[id] = u.globalName || u.username;
+      } catch (e) {
+        out[id] = null;
+      }
+    }
+    return out;
+  }
+
   async reply(payload) {
-    this.out = textOf(payload);
+    this.out = textOf(payload, await this.names(payload));
     return {
       awaitMessageComponent: async () => {
         throw new UserError('That needs Discord. Use the slash command there.');
