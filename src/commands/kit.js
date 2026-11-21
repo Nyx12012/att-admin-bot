@@ -60,7 +60,8 @@ module.exports = {
         const user = await s.lookup(name);
         made = (await ctx.bot.economy.deliver(s, user.username, { hash: x.hash }, x.count)).delivered;
       } else {
-        made = await give(s, name, items.byHash(x.hash) || { hash: x.hash, name: x.name }, x.count);
+        const cap = x.count > 1 ? await ctx.bot.economy.stackOf(s, x.hash) : 1;
+        made = await give(s, name, items.byHash(x.hash) || { hash: x.hash, name: x.name }, x.count, '', cap);
       }
       lines.push(`${made} x ${x.name}`);
     }
