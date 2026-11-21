@@ -104,7 +104,7 @@ resetting them, removing one item from the ground, and posts as the bot.
 - Members with the Administrator permission can use the admin commands.
 - `/boot`, `/shutdown` and `/restart` are for admins. Grant `/boot` to a role if your members should
   be able to start the server.
-- Owner only by default: `/bot`, `/cmd`, `/cc`, `/string`, `/spawn`, `/kit give`, `/mail`, `/atm add|set`,
+- Owner only by default: `/bot`, `/cmd`, `/cc`, `/string`, `/spawn`, `/kit give`, `/mail`, `/atm add|take|set`,
   `/alchemy create|hold|edit|delete|toggle|test`, `/report action|clear`, `/chunks wipe`,
   `/settings set`, `/world`, `/permissions`. These can run anything on your server, so grant them
   with care.

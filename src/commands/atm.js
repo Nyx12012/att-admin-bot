@@ -14,6 +14,7 @@ module.exports = {
     .setDescription("A player's ATM coins (needs the BotCore server mod)")
     .addSubcommand((s) => who(s.setName('balance').setDescription('How many coins they have')))
     .addSubcommand((s) => addInt(who(s.setName('add').setDescription('Give coins (negative takes away)')), 'amount', 'Coins', { min: -1000000, max: 1000000 }))
+    .addSubcommand((s) => addInt(who(s.setName('take').setDescription('Take coins away')), 'amount', 'Coins', { min: 1, max: 1000000 }))
     .addSubcommand((s) => addInt(who(s.setName('set').setDescription('Set the balance')), 'amount', 'Coins', { min: 0, max: 10000000 })),
   access: { balance: 'admin', '*': 'owner' },
 
@@ -30,9 +31,10 @@ module.exports = {
     busy.add(key);
     try {
       const before = Number(await s.value(`trade atm get ${q}`));
-      const amount = ctx.opt('amount');
-      if (ctx.sub === 'add' && before + amount < 0) throw new UserError(`${user.username} only has ${before} coins.`);
-      const after = ctx.sub === 'add' ? Number(await s.value(`trade atm add ${q} ${amount}`)) : (await s.run(`trade atm set ${q} ${amount}`), Number(await s.value(`trade atm get ${q}`)));
+      const amount = ctx.sub === 'take' ? -ctx.opt('amount') : ctx.opt('amount');
+      const set = ctx.sub === 'set';
+      if (!set && before + amount < 0) throw new UserError(`${user.username} only has ${before} coins.`);
+      const after = set ? (await s.run(`trade atm set ${q} ${amount}`), Number(await s.value(`trade atm get ${q}`))) : Number(await s.value(`trade atm add ${q} ${amount}`));
       ctx.note(`${user.username} ${before} to ${after}`);
       return ctx.ok(`${user.username}: ATM`, `${before} to **${after}** coins.`);
     } finally {

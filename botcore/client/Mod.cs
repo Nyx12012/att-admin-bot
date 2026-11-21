@@ -15,7 +15,7 @@ namespace BotCore.Client
 {
     public class Mod : MelonMod
     {
-        public const string Version = "1.6.0";
+        public const string Version = "1.6.1";
         internal static MelonLogger.Instance Log;
 
         static readonly Dictionary<string, float> quietUntil = new Dictionary<string, float>();

@@ -158,7 +158,7 @@ namespace BotCore.Client
             if (col != null) UnityEngine.Object.Destroy(col);
             q.transform.SetParent(parent.transform, false);
             q.transform.localRotation = rot;
-            q.transform.localScale = new Vector3(0.12f, 0.12f, 0.12f);
+            q.transform.localScale = new Vector3(0.21f, 0.21f, 0.21f);
             q.GetComponent<MeshRenderer>().sharedMaterial = mat;
         }
     }
