@@ -19,6 +19,11 @@ async function give(server, name, item, count, extra = '', cap = 1) {
   return made;
 }
 
+function oldCore(s) {
+  const m = String(s.botcore || '').match(/^BotCore (\d+)\.(\d+)/);
+  return !m || Number(m[1]) < 1 || (Number(m[1]) === 1 && Number(m[2]) < 6);
+}
+
 function pouchesOf(made, cap) {
   if (cap <= 1) return 0;
   return Math.floor(made / cap) + (made % cap > 1 ? 1 : 0);
@@ -41,7 +46,8 @@ module.exports = {
     const made = await give(s, name, item, count, `${material ? ` ${material.value}` : ''}${ctx.opt('forged') ? ' forged' : ''}`, cap);
     const label = item.unknown ? item.name : materials.named(item.name, material);
     const pouches = pouchesOf(made, cap);
+    const old = count > 1 && cap <= 1 && oldCore(s) ? ` They came one by one: stacks only come in pouches with BotCore.Server 1.6 or newer on the game server${s.botcore ? `, this one runs ${s.botcore}` : ''}.` : '';
     ctx.note(`${made} x ${label} (${item.hash}) to ${name}`);
-    return ctx.ok('Spawned', `${made} x **${label}** in front of ${name}${pouches ? `, in ${pouches} ${pouches === 1 ? 'pouch' : 'pouches'}` : ''}.${material && item.unknown ? ` The bot has no record of this item, so it cannot say whether ${material.name} applied.` : ''}`);
+    return ctx.ok('Spawned', `${made} x **${label}** in front of ${name}${pouches ? `, in ${pouches} ${pouches === 1 ? 'pouch' : 'pouches'}` : ''}.${old}${material && item.unknown ? ` The bot has no record of this item, so it cannot say whether ${material.name} applied.` : ''}`);
   },
 };

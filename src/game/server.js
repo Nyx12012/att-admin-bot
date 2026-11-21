@@ -65,7 +65,10 @@ class GameServer extends EventEmitter {
 
   async start() {
     for (const e of EVENTS) this.tavern.subscribe(e).catch(() => {});
-    this.rosterTimer = setInterval(() => this.refreshRoster().catch(() => {}), 60000);
+    this.rosterTimer = setInterval(() => {
+      this.refreshRoster().catch(() => {});
+      if (this.online && !this.botcore) this.probeBotCore().catch(() => {});
+    }, 60000);
     this.rosterTimer.unref?.();
     const attempt = async () => {
       try {

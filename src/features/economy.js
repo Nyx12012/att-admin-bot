@@ -21,6 +21,7 @@ class Economy {
   }
 
   async stackOf(s, hash) {
+    if (!s.botcore && s.probeBotCore) await s.probeBotCore().catch(() => null);
     if (!atLeast(s.botcore, 1, 6)) return 1;
     const key = `${s.id}:${hash}`;
     if (this.stacks.has(key)) return this.stacks.get(key);
